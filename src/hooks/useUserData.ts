@@ -83,9 +83,6 @@ export const useUserData = () => {
         console.log('Nenhum dado salvo encontrado, usando dados padrão');
         setUserData(defaultUserData);
       }
-      
-      // Não mostrar toast de erro durante desenvolvimento, apenas log
-      console.warn('Usando dados de fallback devido ao erro:', err);
     } finally {
       setLoading(false);
     }

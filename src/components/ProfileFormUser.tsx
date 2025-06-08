@@ -42,8 +42,22 @@ const ProfileFormUser = () => {
   
   // Update form data when userData changes (sync across tabs)
   useEffect(() => {
-    if (!formChanged) {
-      setFormData(userData);
+    if (!formChanged && userData) {
+      // Garantir que endereco existe antes de definir formData
+      const safeUserData = {
+        ...userData,
+        endereco: {
+          cep: '',
+          rua: '',
+          numero: '',
+          complemento: '',
+          bairro: '',
+          cidade: '',
+          estado: '',
+          ...userData.endereco, // Mesclar com dados existentes se houver
+        }
+      };
+      setFormData(safeUserData);
     }
   }, [userData, formChanged]);
 
@@ -117,6 +131,17 @@ const ProfileFormUser = () => {
     const phoneRegex = /^\(\d{2}\)\s\d{4,5}-\d{4}$/;
     if (formData.telefone && !phoneRegex.test(formData.telefone)) {
       errors.telefone = "Formato de telefone inválido. Ex: (11) 98765-4321";
+    }
+    
+    // Validação de data de nascimento
+    if (formData.dataNascimento) {
+      const birthDate = new Date(formData.dataNascimento);
+      const today = new Date();
+      const age = today.getFullYear() - birthDate.getFullYear();
+      
+      if (age < 16 || age > 120) {
+        errors.dataNascimento = "Data de nascimento inválida";
+      }
     }
     
     // Validação de CEP (formato brasileiro)
@@ -367,199 +392,172 @@ const ProfileFormUser = () => {
                 
                 {/* Aba de Dados Pessoais */}
                 <TabsContent value="pessoal">
-                  <Card className="bg-white dark:bg-[#23272F] border-[#EDF2FB] dark:border-[#444857]">
+                  <Card className="w-full bg-white dark:bg-[#23272F] border border-[#EDF2FB] dark:border-gray-700 shadow-lg">
                     <CardHeader>
-                      <CardTitle>Dados Pessoais</CardTitle>
-                      <CardDescription>Atualize suas informações pessoais</CardDescription>
+                      <CardTitle className="text-xl font-semibold text-indigo-900 dark:text-gray-100">
+                        Dados Pessoais
+                      </CardTitle>
+                      <CardDescription className="text-gray-600 dark:text-gray-400">
+                        Atualize suas informações pessoais
+                      </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      {successMessage && (
-                        <div className="bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 p-3 rounded-md mb-4">
-                          {successMessage}
+                    <CardContent className="space-y-6">
+                      {loading && (
+                        <div className="flex items-center justify-center p-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ED4231]"></div>
+                          <span className="ml-2 text-gray-600 dark:text-gray-400">Carregando dados...</span>
                         </div>
                       )}
-                    
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="nome" className="flex items-center justify-between">
-                            Nome
-                            {validationErrors.nome && (
-                              <span className="text-xs text-red-500">{validationErrors.nome}</span>
-                            )}
-                          </Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Input 
-                                id="nome" 
-                                name="nome" 
-                                value={formData.nome} 
-                                onChange={handleInputChange} 
-                                className={`bg-white dark:bg-gray-800 ${validationErrors.nome ? 'border-red-500 focus:ring-red-500' : ''}`}
-                              />
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              <p>Digite seu primeiro nome</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="sobrenome" className="flex items-center justify-between">
-                            Sobrenome
-                            {validationErrors.sobrenome && (
-                              <span className="text-xs text-red-500">{validationErrors.sobrenome}</span>
-                            )}
-                          </Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Input 
-                                id="sobrenome" 
-                                name="sobrenome" 
-                                value={formData.sobrenome} 
+                      
+                      {!loading && (
+                        <>
+                          {/* Nome e Sobrenome */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="nome" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Nome *
+                              </Label>
+                              <Input
+                                id="nome"
+                                name="nome"
+                                type="text"
+                                value={formData.nome}
                                 onChange={handleInputChange}
-                                className={`bg-white dark:bg-gray-800 ${validationErrors.sobrenome ? 'border-red-500 focus:ring-red-500' : ''}`} 
+                                className={`w-full ${validationErrors.nome ? 'border-red-500' : ''}`}
+                                placeholder="Digite seu nome"
                               />
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              <p>Digite seu sobrenome</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="email" className="flex items-center justify-between">
-                          Email
-                          {validationErrors.email && (
-                            <span className="text-xs text-red-500">{validationErrors.email}</span>
-                          )}
-                        </Label>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Input 
-                              id="email" 
-                              name="email" 
-                              type="email" 
-                              value={formData.email} 
+                              {validationErrors.nome && (
+                                <span className="text-sm text-red-500">{validationErrors.nome}</span>
+                              )}
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label htmlFor="sobrenome" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Sobrenome *
+                              </Label>
+                              <Input
+                                id="sobrenome"
+                                name="sobrenome"
+                                type="text"
+                                value={formData.sobrenome}
+                                onChange={handleInputChange}
+                                className={`w-full ${validationErrors.sobrenome ? 'border-red-500' : ''}`}
+                                placeholder="Digite seu sobrenome"
+                              />
+                              {validationErrors.sobrenome && (
+                                <span className="text-sm text-red-500">{validationErrors.sobrenome}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Email */}
+                          <div className="space-y-2">
+                            <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                              E-mail *
+                            </Label>
+                            <Input
+                              id="email"
+                              name="email"
+                              type="email"
+                              value={formData.email}
                               onChange={handleInputChange}
-                              className={`bg-white dark:bg-gray-800 ${validationErrors.email ? 'border-red-500 focus:ring-red-500' : ''}`} 
+                              className={`w-full ${validationErrors.email ? 'border-red-500' : ''}`}
+                              placeholder="Digite seu e-mail"
                             />
-                          </TooltipTrigger>
-                          <TooltipContent side="top">
-                            <p>Insira seu e-mail principal para contato</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="telefone" className="flex items-center justify-between">
-                            Telefone
+                            {validationErrors.email && (
+                              <span className="text-sm text-red-500">{validationErrors.email}</span>
+                            )}
+                          </div>
+
+                          {/* Telefone */}
+                          <div className="space-y-2">
+                            <Label htmlFor="telefone" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Telefone
+                            </Label>
+                            <Input
+                              id="telefone"
+                              name="telefone"
+                              type="tel"
+                              value={formData.telefone}
+                              onChange={handleInputChange}
+                              className={`w-full ${validationErrors.telefone ? 'border-red-500' : ''}`}
+                              placeholder="(11) 98765-4321"
+                            />
                             {validationErrors.telefone && (
-                              <span className="text-xs text-red-500">{validationErrors.telefone}</span>
+                              <span className="text-sm text-red-500">{validationErrors.telefone}</span>
                             )}
-                          </Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Input 
-                                id="telefone" 
-                                name="telefone" 
-                                value={formData.telefone} 
+                          </div>
+
+                          {/* Data de Nascimento e Gênero */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="dataNascimento" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Data de Nascimento
+                              </Label>
+                              <Input
+                                id="dataNascimento"
+                                name="dataNascimento"
+                                type="date"
+                                value={formData.dataNascimento}
                                 onChange={handleInputChange}
-                                className={`bg-white dark:bg-gray-800 ${validationErrors.telefone ? 'border-red-500 focus:ring-red-500' : ''}`} 
+                                className="w-full"
                               />
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              <p>Formato: (XX) XXXXX-XXXX</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="dataNascimento" className="flex items-center justify-between">
-                            Data de Nascimento
-                            {validationErrors.dataNascimento && (
-                              <span className="text-xs text-red-500">{validationErrors.dataNascimento}</span>
-                            )}
-                          </Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Input 
-                                id="dataNascimento" 
-                                name="dataNascimento" 
-                                type="date" 
-                                value={formData.dataNascimento} 
-                                onChange={handleInputChange}
-                                className={`bg-white dark:bg-gray-800 ${validationErrors.dataNascimento ? 'border-red-500 focus:ring-red-500' : ''}`} 
-                              />
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              <p>Selecione sua data de nascimento</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="genero" className="flex items-center justify-between">
-                          Gênero
-                          {validationErrors.genero && (
-                            <span className="text-xs text-red-500">{validationErrors.genero}</span>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label htmlFor="genero" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Gênero
+                              </Label>
+                              <select
+                                id="genero"
+                                name="genero"
+                                value={formData.genero}
+                                onChange={(e) => handleInputChange(e as any)}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#ED4231] bg-white dark:bg-[#23272F] text-gray-900 dark:text-gray-100"
+                              >
+                                <option value="OUTRO">Prefiro não informar</option>
+                                <option value="FEMININO">Feminino</option>
+                                <option value="MASCULINO">Masculino</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Botões de ação */}
+                          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                            <Button
+                              onClick={handleSave}
+                              disabled={loading}
+                              className="flex-1 bg-[#ED4231] hover:bg-[#ED4231]/90 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
+                            >
+                              {loading ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                  Salvando...
+                                </>
+                              ) : (
+                                'Salvar Alterações'
+                              )}
+                            </Button>
+                            
+                            <Button
+                              onClick={handleCancel}
+                              disabled={loading}
+                              variant="outline"
+                              className="flex-1 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium py-2 px-4 rounded-lg transition-colors duration-200"
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+
+                          {/* Mensagem de sucesso */}
+                          {successMessage && (
+                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200 px-4 py-3 rounded-lg">
+                              {successMessage}
+                            </div>
                           )}
-                        </Label>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Input 
-                              id="genero" 
-                              name="genero" 
-                              value={formData.genero} 
-                              onChange={handleInputChange}
-                              className={`bg-white dark:bg-gray-800 ${validationErrors.genero ? 'border-red-500 focus:ring-red-500' : ''}`} 
-                            />
-                          </TooltipTrigger>
-                          <TooltipContent side="top">
-                            <p>Informe como você se identifica</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
+                        </>
+                      )}
                     </CardContent>
-                    <CardFooter className="flex justify-between">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button 
-                            variant="outline" 
-                            onClick={handleCancel} 
-                            disabled={loading || (!formChanged && !selectedImage)}
-                            className="border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-300"
-                          >
-                            Cancelar
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p>Descartar alterações feitas no perfil</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button 
-                            onClick={handleSave} 
-                            disabled={loading || (!formChanged && !selectedImage)} 
-                            className="ml-auto bg-[#ED4231] hover:bg-[#d53a2a]"
-                          >
-                            {loading ? (
-                              <div className="flex items-center">
-                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Salvando...
-                              </div>
-                            ) : "Salvar Alterações"}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p>Salvar todas as alterações feitas no perfil</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </CardFooter>
                   </Card>
                 </TabsContent>
                 

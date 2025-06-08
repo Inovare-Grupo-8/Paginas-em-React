@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Calendar, User, Clock, Menu, History, Sun, Moon, ArrowLeft, Home as HomeIcon, UserPlus } from "lucide-react";
+import { Calendar as CalendarIcon, User, Clock, Menu, History, ChevronRight, Users, UserCheck, Activity, Sun, Moon, Home as HomeIcon, Phone, Mail, MessageSquare, FileText, Check, X, Eye, ThumbsUp, ThumbsDown, AlertTriangle, UserPlus, ArrowLeft } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useProfileImage } from "@/components/useProfileImage";
 import { useThemeToggleWithNotification } from "@/hooks/useThemeToggleWithNotification";
@@ -13,75 +13,68 @@ import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCep } from "@/hooks/useCep";
 import { Badge } from "@/components/ui/badge";
+import { useAssistenteSocial, AssistenteSocialInput, AssistenteSocialOutput } from "@/hooks/useAssistenteSocial";
+import { UserNavigationItem } from "@/utils/userNavigation";
 
 // Interface para dados do assistente social
-interface AssistenteSocialData {
-  id: string;
-  nome: string;
-  sobrenome: string;
-  crp: string;
-  especialidade: string;
-  telefone: string;
-  email: string;
-  endereco?: {
-    rua: string;
-    numero: string;
-    complemento?: string;
-    bairro: string;
-    cidade: string;
-    estado: string;
-    cep: string;
-  };
-  bio?: string;
-  disponivel: boolean;
+interface AssistenteSocialFormData extends AssistenteSocialOutput {
   proximaDisponibilidade: Date;
   atendimentosRealizados: number;
   avaliacaoMedia: number;
 }
 
 // Dados mockados do assistente social
-const assistenteSocialDataDefault: AssistenteSocialData = {
-  id: "as001",
-  nome: "Maria",
-  sobrenome: "Silva Santos",
-  crp: "CRP 12/34567",
-  especialidade: "Assistência Social Clínica",
-  telefone: "(11) 99999-8888",
-  email: "maria.santos@clinic.com",
+const assistenteSocialDataDefault: AssistenteSocialFormData = {
+  idUsuario: 0,
+  nome: "",
+  sobrenome: "",
+  crp: "",
+  especialidade: "",
+  telefone: "",
+  email: "",
+  bio: "",
   endereco: {
-    rua: "Rua das Palmeiras",
-    numero: "123",
-    complemento: "Sala 45",
-    bairro: "Centro",
-    cidade: "São Paulo",
-    estado: "SP",
-    cep: "01234-567"
+    rua: "",
+    numero: "",
+    complemento: "",
+    bairro: "",
+    cidade: "",
+    estado: "",
+    cep: ""
   },
-  bio: "Assistente Social especializada em atendimento clínico com mais de 10 anos de experiência.",
-  disponivel: true,
-  proximaDisponibilidade: new Date(2025, 4, 31, 14, 0),
-  atendimentosRealizados: 342,
-  avaliacaoMedia: 4.8
+  proximaDisponibilidade: new Date(),
+  atendimentosRealizados: 0,
+  avaliacaoMedia: 0
 };
 
-// Itens de navegação para o assistente social
-const assistenteSocialNavItems = [
-  {
-    path: "/assistente-social",
-    label: "Home",
-    icon: <HomeIcon className="w-6 h-6" color="#ED4231" />
+// Itens de navegação padronizados para o assistente social 
+export const assistenteSocialNavItems: Record<string, UserNavigationItem> = {
+  home: {
+    path: '/assistente-social',
+    label: 'Home',
+    icon: <HomeIcon className="w-6 h-6" color="#ED4231" />,
   },
-  {
-    path: "/cadastro-voluntario",
-    label: "Cadastrar Voluntário",
-    icon: <UserPlus className="w-6 h-6" color="#ED4231" />
+  classificarUsuarios: {
+    path: '/classificacao-usuarios',
+    label: 'Classificar Usuários',
+    icon: <UserCheck className="w-6 h-6" color="#ED4231" />,
   },
-  {
-    path: "/profile-form-assistente-social",
-    label: "Editar Perfil",
-    icon: <User className="w-6 h-6" color="#ED4231" />
-  }
-];
+  cadastrarVoluntario: {
+    path: '/cadastro-voluntario',
+    label: 'Cadastrar Voluntário',
+    icon: <UserPlus className="w-6 h-6" color="#ED4231" />,
+  },
+  cadastrarAssistente: {
+    path: '/cadastro-assistente',
+    label: 'Cadastrar Assistente', 
+    icon: <UserPlus className="w-6 h-6" color="#ED4231" />,
+  },
+  perfil: {
+    path: '/profile-form-assistente-social',
+    label: 'Meu Perfil',
+    icon: <User className="w-6 h-6" color="#ED4231" />,
+  },
+};
 
 const ProfileFormAssistenteSocial = () => {
   const location = useLocation();
@@ -98,7 +91,7 @@ const ProfileFormAssistenteSocial = () => {
   const [formChanged, setFormChanged] = useState(false);
 
   // Estado para o formulário
-  const [formData, setFormData] = useState<AssistenteSocialData>(assistenteSocialDataDefault);
+  const [formData, setFormData] = useState<AssistenteSocialFormData>(assistenteSocialDataDefault);
 
   // Estado para a imagem selecionada
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -123,7 +116,7 @@ const ProfileFormAssistenteSocial = () => {
     }
       if (name.includes('.')) {
       const [parent, child] = name.split('.');
-      const parentValue = formData[parent as keyof AssistenteSocialData];
+      const parentValue = formData[parent as keyof AssistenteSocialFormData];
       setFormData({
         ...formData,
         [parent]: {
@@ -195,10 +188,33 @@ const ProfileFormAssistenteSocial = () => {
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
+  const { fetchPerfil, atualizarPerfil } = useAssistenteSocial();
+
+  // Função para carregar dados do perfil
+  useEffect(() => {
+    const carregarPerfil = async () => {
+      try {
+        const dados = await fetchPerfil();
+        setFormData({
+          ...dados,
+          proximaDisponibilidade: new Date(),
+          atendimentosRealizados: 0,
+          avaliacaoMedia: 0
+        });
+      } catch (error) {
+        toast({
+          title: "Erro ao carregar perfil",
+          description: "Não foi possível carregar os dados do perfil.",
+          variant: "destructive"
+        });
+      }
+    };
+
+    carregarPerfil();
+  }, []);
 
   // Função para salvar as alterações
-  const handleSave = () => {
-    // If no changes were made, just provide feedback
+  const handleSave = async () => {
     if (!formChanged && !selectedImage) {
       toast({
         title: "Nenhuma alteração detectada",
@@ -208,7 +224,6 @@ const ProfileFormAssistenteSocial = () => {
       return;
     }
     
-    // Validate the form before saving
     if (!validateForm()) {
       toast({
         title: "Formulário com erros",
@@ -220,38 +235,50 @@ const ProfileFormAssistenteSocial = () => {
     
     setLoading(true);
     
-    // Simulating an API call
-    setTimeout(() => {
-      try {
-        // Here you would normally save to an API or context
-        localStorage.setItem("assistenteSocialData", JSON.stringify(formData));
-        
-        // If there's a new image, update it
-        if (selectedImage && imagePreview) {
-          setProfileImage(imagePreview);
-        }
-        
-        // Success feedback
-        setSuccessMessage("Perfil atualizado com sucesso!");
-        setFormChanged(false);
-        
-        toast({
-          title: "Perfil atualizado",
-          description: "Suas informações foram atualizadas com sucesso!",
-        });
-        
-        // Hide success message after a few seconds
-        setTimeout(() => setSuccessMessage(""), 3000);
-      } catch (error) {
-        toast({
-          title: "Erro ao salvar",
-          description: "Ocorreu um erro ao salvar suas informações.",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
+    try {
+      const dadosParaEnviar: AssistenteSocialInput = {
+        nome: formData.nome,
+        sobrenome: formData.sobrenome,
+        crp: formData.crp,
+        especialidade: formData.especialidade,
+        telefone: formData.telefone,
+        email: formData.email,
+        bio: formData.bio,
+        endereco: formData.endereco
+      };
+
+      const dadosAtualizados = await atualizarPerfil(dadosParaEnviar);
+      
+      setFormData({
+        ...dadosAtualizados,
+        proximaDisponibilidade: formData.proximaDisponibilidade,
+        atendimentosRealizados: formData.atendimentosRealizados,
+        avaliacaoMedia: formData.avaliacaoMedia
+      });
+      
+      if (selectedImage && imagePreview) {
+        setProfileImage(imagePreview);
+        // Aqui você pode implementar o upload da imagem se necessário
       }
-    }, 1500);
+      
+      setSuccessMessage("Perfil atualizado com sucesso!");
+      setFormChanged(false);
+      
+      toast({
+        title: "Perfil atualizado",
+        description: "Suas informações foram atualizadas com sucesso!",
+      });
+      
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      toast({
+        title: "Erro ao salvar",
+        description: "Ocorreu um erro ao salvar suas informações.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
   
   // Função para buscar endereço pelo CEP
@@ -335,7 +362,7 @@ const ProfileFormAssistenteSocial = () => {
           </div>
           
           <SidebarMenu className="gap-4 text-sm md:text-base">
-            {assistenteSocialNavItems.map((item) => (
+            {Object.values(assistenteSocialNavItems).map((item) => (
               <SidebarMenuItem key={item.path}>
                 <Tooltip>
                   <TooltipTrigger asChild>

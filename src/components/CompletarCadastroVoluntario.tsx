@@ -35,9 +35,11 @@ type FieldState = 'valid' | 'invalid' | 'default';
 
 interface PrimeiraFaseData {
   nome?: string;
+  sobrenome?: string;
   email?: string;
   dataNascimento?: string;
   telefone?: string;
+  cpf?: string;
   id?: number;
 }
 
@@ -141,10 +143,9 @@ export function CompletarCadastroVoluntario() {
     profissao: "",
     crm: "",
     tipo: "VOLUNTARIO",
-  });
-
-  const [errors, setErrors] = useState<FormErrors>({});
+  });  const [errors, setErrors] = useState<FormErrors>({});
   const [fieldStates, setFieldStates] = useState<Record<string, FieldState>>({});
+  const [readOnlyFields, setReadOnlyFields] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -153,29 +154,24 @@ export function CompletarCadastroVoluntario() {
   const [fetchingUser, setFetchingUser] = useState(false);
   const [fetchUserError, setFetchUserError] = useState<string | null>(null);
   const [primeiraFaseData, setPrimeiraFaseData] = useState<PrimeiraFaseData | null>(null);
-
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState("");
   const location = useLocation();
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
   const idUsuario = searchParams.get('id');
 
+  // Função para gerar senha padrão
+  const generateDefaultPassword = (cpf: string, dataNascimento: string): string => {
+    const cpfDigits = cpf.replace(/\D/g, '');
+    const firstThreeCpfDigits = cpfDigits.substring(0, 3);
+    const birthDate = dataNascimento.replace(/\D/g, '');
+    return firstThreeCpfDigits + birthDate;
+  };
   const validateField = (fieldName: string, value: string) => {
     let isValid = true;
     let errorMessage = "";
-    switch (fieldName) {      case 'cpf': {
-        const cleanCPF = value.replace(/\D/g, '');
-        if (!value) {
-          errorMessage = "CPF é obrigatório";
-          isValid = false;
-        } else if (cleanCPF.length !== 11) {
-          errorMessage = "CPF deve ter 11 dígitos";
-          isValid = false;
-        } else if (!/^\d{11}$/.test(cleanCPF)) {
-          errorMessage = "CPF deve conter apenas números";
-          isValid = false;
-        }
-        break;
-      }
+    switch (fieldName) {
       case 'dataNascimento':
         if (!value) {
           errorMessage = "Data de nascimento é obrigatória";
@@ -228,7 +224,8 @@ export function CompletarCadastroVoluntario() {
           errorMessage = "DDD obrigatório (2 dígitos)";
           isValid = false;
         }
-        break;      case 'telefone': {
+        break;
+      case 'telefone': {
         const cleanPhone = value.replace(/\D/g, '');
         if (!value) {
           errorMessage = "Telefone é obrigatório";
@@ -265,8 +262,12 @@ export function CompletarCadastroVoluntario() {
       .replace(/(\d{5})(\d)/, '$1-$2')
       .replace(/(-\d{4})\d+?$/, '$1');
   };
-
   const handleFieldChange = (fieldName: string, value: string) => {
+    // Não permitir edição de campos somente leitura
+    if (readOnlyFields.has(fieldName)) {
+      return;
+    }
+    
     let formattedValue = value;
 
     // Apply formatting based on field type
@@ -283,6 +284,11 @@ export function CompletarCadastroVoluntario() {
 
   // Handler para mudanças nos campos com máscara
   const handleMaskedFieldChange = (fieldName: string, value: string) => {
+    // Não permitir edição de campos somente leitura
+    if (readOnlyFields.has(fieldName)) {
+      return;
+    }
+    
     let formattedValue = value;
     if (fieldName === 'cpf') {
       formattedValue = formatCPF(value);
@@ -305,17 +311,17 @@ export function CompletarCadastroVoluntario() {
       }
     }, 2000);
     return () => clearTimeout(timeoutId);
-  }, [changedFields, formData]);
-
-  // Buscar dados do usuário quando o ID está disponível
+  }, [changedFields, formData]);  // Buscar dados do usuário quando o ID está disponível
   useEffect(() => {
     if (!idUsuario) {
       console.log("idUsuario não encontrado na URL.");
       return;
     }
+    
     console.log("Buscando usuário com idUsuario:", idUsuario);
     setFetchingUser(true);
     setFetchUserError(null);
+    
     fetch(`http://localhost:8080/usuarios/verificar-cadastro?idUsuario=${idUsuario}`)
       .then(async (res) => {
         if (!res.ok) {
@@ -323,36 +329,112 @@ export function CompletarCadastroVoluntario() {
         }
         const data = await res.json();
         console.log("Dados recebidos:", data);
-        setFormData((prev) => ({
-          ...prev,
-          nomeCompleto: (data.nome && data.sobrenome) ? `${data.nome} ${data.sobrenome}` : (data.nome || prev.nomeCompleto),
-          email: data.email || prev.email,
-          dataNascimento: data.dataNascimento || prev.dataNascimento,
-        }));
+        
+        // Verificar se é usuário novo (sem dados da primeira fase completos)
+        const hasBasicInfo = data.nome && data.cpf;
+        setIsNewUser(!hasBasicInfo);
+        
+        // Determinar quais campos vieram do banco de dados e devem ser somente leitura
+        const fieldsFromDB = new Set<string>();
+        
+        // Atualizar dados do formulário e marcar campos como somente leitura
+        setFormData((prev) => {
+          const updatedData = { ...prev };
+          
+          // Nome completo (combinação de nome + sobrenome)
+          if (data.nome) {
+            const nomeCompleto = data.sobrenome ? `${data.nome} ${data.sobrenome}` : data.nome;
+            updatedData.nomeCompleto = nomeCompleto;
+            fieldsFromDB.add('nomeCompleto');
+          }
+          
+          // Email
+          if (data.email) {
+            updatedData.email = data.email;
+            fieldsFromDB.add('email');
+          }
+          
+          // CPF
+          if (data.cpf) {
+            updatedData.cpf = data.cpf;
+            fieldsFromDB.add('cpf');
+          }
+          
+          // Data de nascimento
+          if (data.dataNascimento) {
+            updatedData.dataNascimento = data.dataNascimento;
+          }
+          
+          return updatedData;
+        });
+        
+        // Marcar campos como somente leitura
+        setReadOnlyFields(fieldsFromDB);
+        
+        // Salvar dados da primeira fase
+        setPrimeiraFaseData(data);
       })
       .catch((error) => {
         console.error("Erro ao buscar usuário:", error);
         setFetchUserError(error.message);
       })
       .finally(() => setFetchingUser(false));
-  }, [idUsuario]);
-
-  // Buscar usuário por email se idUsuario não existir
+  }, [idUsuario]);  // Buscar usuário por email se idUsuario não existir
   useEffect(() => {
     if ((!idUsuario || idUsuario === '0') && formData.email && fieldStates.email === 'valid') {
       setFetchingUser(true);
+      
       fetch(`http://localhost:8080/usuarios/verificar-cadastro?email=${encodeURIComponent(formData.email)}`)
         .then(async (res) => {
           if (!res.ok) {
             throw new Error('Usuário não encontrado');
           }
           const data = await res.json();
+          
           if (data) {
-            setFormData((prev) => ({
-              ...prev,
-              nomeCompleto: (data.nome && data.sobrenome) ? `${data.nome} ${data.sobrenome}` : (data.nome || prev.nomeCompleto),
-              dataNascimento: data.dataNascimento || prev.dataNascimento,
-            }));
+            // Verificar se é usuário novo (sem dados da primeira fase completos)
+            const hasBasicInfo = data.nome && data.cpf;
+            setIsNewUser(!hasBasicInfo);
+            
+            // Determinar quais campos vieram do banco de dados e devem ser somente leitura
+            const fieldsFromDB = new Set<string>();
+            
+            // Atualizar dados do formulário e marcar campos como somente leitura
+            setFormData((prev) => {
+              const updatedData = { ...prev };
+              
+              // Nome completo (combinação de nome + sobrenome)
+              if (data.nome) {
+                const nomeCompleto = data.sobrenome ? `${data.nome} ${data.sobrenome}` : data.nome;
+                updatedData.nomeCompleto = nomeCompleto;
+                fieldsFromDB.add('nomeCompleto');
+              }
+              
+              // Email
+              if (data.email) {
+                updatedData.email = data.email;
+                fieldsFromDB.add('email');
+              }
+              
+              // CPF
+              if (data.cpf) {
+                updatedData.cpf = data.cpf;
+                fieldsFromDB.add('cpf');
+              }
+              
+              // Data de nascimento
+              if (data.dataNascimento) {
+                updatedData.dataNascimento = data.dataNascimento;
+              }
+              
+              return updatedData;
+            });
+            
+            // Marcar campos como somente leitura
+            setReadOnlyFields(fieldsFromDB);
+            
+            // Salvar dados da primeira fase
+            setPrimeiraFaseData(data);
           }
         })
         .catch((error) => {
@@ -391,43 +473,70 @@ export function CompletarCadastroVoluntario() {
       if (!validateField(field, formData[field as keyof typeof formData])) isValid = false;
     });
     return isValid;
-  };
-
-  // Payload para backend
+  };  // Payload para backend
   const getPayload = () => {
     // Clean up phone number - remove all non-digits and ensure proper format
     const cleanPhone = formData.telefone.replace(/\D/g, '');
-    // Clean up CPF - remove all non-digits
-    const cleanCpf = formData.cpf.replace(/\D/g, '');
     // Clean up CEP - remove all non-digits for backend
     const cleanCep = formData.cep.replace(/\D/g, '');
     
+    // Parse phone number: 11 digits = ddd (2) + prefixo (5) + sufixo (4)
+    let telefoneData = {};
+    if (cleanPhone.length === 11) {
+      telefoneData = {
+        ddd: cleanPhone.substring(0, 2),
+        prefixo: cleanPhone.substring(2, 7),
+        sufixo: cleanPhone.substring(7, 11),
+        whatsapp: true // Default to true for volunteers
+      };
+    } else if (cleanPhone.length === 10) {
+      // Handle 10-digit numbers: ddd (2) + prefixo (4) + sufixo (4) -> convert to new format
+      telefoneData = {
+        ddd: cleanPhone.substring(0, 2),
+        prefixo: "9" + cleanPhone.substring(2, 6), // Add 9 prefix for mobile
+        sufixo: cleanPhone.substring(6, 10),
+        whatsapp: true
+      };
+    }
+    
     const payload: any = {
-      cpf: cleanCpf,
+      // CPF is not included here since it comes from first phase
       dataNascimento: formData.dataNascimento,
       genero: formData.genero,
       renda: convertFaixaSalarialToNumber(formData.faixaSalarial),
-      funcao: formData.funcao,
-      profissao: formData.profissao,
       tipo: "VOLUNTARIO",
       endereco: {
         cep: cleanCep,
         numero: formData.numero,
-        complemento: formData.complemento || "",
-        logradouro: formData.logradouro,
-        bairro: formData.bairro,
-        cidade: formData.cidade,
-        estado: formData.estado
+        complemento: formData.complemento || "N/A" // Required field, provide default
       },
-      telefone: {
-        ddd: cleanPhone.substring(0, 2),
-        numero: cleanPhone.substring(2)
-      }
+      telefone: telefoneData,
+      profissao: formData.profissao
     };
+    
+    // Add optional fields
+    if (formData.funcao) payload.funcao = formData.funcao;
     if (formData.crm) payload.crm = formData.crm;
+    
+    // Para usuários novos, incluir dados da primeira fase e senha
+    if (isNewUser) {
+      // Separar nome completo em nome e sobrenome
+      const nomePartes = formData.nomeCompleto.trim().split(' ');
+      const nome = nomePartes[0];
+      const sobrenome = nomePartes.slice(1).join(' ') || '';
+      
+      const senha = generateDefaultPassword(formData.cpf, formData.dataNascimento);
+      setGeneratedPassword(senha);
+      
+      payload.nome = nome;
+      payload.sobrenome = sobrenome;
+      payload.email = formData.email;
+      payload.cpf = formData.cpf.replace(/\D/g, '');
+      payload.senha = senha;
+    }
+    
     return payload;
   };
-
   // Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -457,6 +566,7 @@ export function CompletarCadastroVoluntario() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Resposta do servidor:', errorData);
+        
         throw new Error(errorData.message || 'Erro ao completar cadastro');
       }
 
@@ -464,18 +574,31 @@ export function CompletarCadastroVoluntario() {
       localStorage.removeItem('voluntario_form_data');
       localStorage.removeItem('voluntario_form_timestamp');
       
-      // Mostrar modal de sucesso e redirecionar
+      // Mostrar modal de sucesso
       setShowSuccessModal(true);
-      setTimeout(() => navigate('/login'), 2000);
+      
+      // Para usuários existentes, redirecionar automaticamente após delay
+      if (!isNewUser) {
+        setTimeout(() => navigate('/login'), 2000);
+      }
+      // Para usuários novos, aguardar fechamento manual do modal
 
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Erro ao enviar cadastro.';
       setSubmitError(errorMessage);
-      setErrors(prev => ({ ...prev, cpf: errorMessage }));
+      
       console.error('Erro no submit:', error);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Função para obter classes CSS do campo baseado no estado readonly
+  const getFieldClasses = (fieldName: string, baseClass: string = formClasses.input) => {
+    if (readOnlyFields.has(fieldName)) {
+      return `${baseClass} bg-gray-100 dark:bg-gray-700 cursor-not-allowed text-gray-600 dark:text-gray-400`;
+    }
+    return baseClass;
   };
 
   // Renderização do campo com estado visual
@@ -504,8 +627,17 @@ export function CompletarCadastroVoluntario() {
         {showSuccessModal && (
           <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
             <motion.div className="absolute inset-0 bg-black/50 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-            <motion.div className="relative bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-white/20 dark:border-gray-700/30 max-w-md w-full mx-4 overflow-hidden" initial={{ scale: 0.8, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.8, opacity: 0, y: 20 }} transition={{ duration: 0.4, type: "spring", stiffness: 300 }}>
-              <motion.button onClick={() => setShowSuccessModal(false)} className="absolute top-4 right-4 w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors z-10" whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+            <motion.div className="relative bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-white/20 dark:border-gray-700/30 max-w-md w-full mx-4 overflow-hidden" initial={{ scale: 0.8, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.8, opacity: 0, y: 20 }} transition={{ duration: 0.4, type: "spring", stiffness: 300 }}>              <motion.button 
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  if (isNewUser) {
+                    navigate('/login');
+                  }
+                }} 
+                className="absolute top-4 right-4 w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors z-10" 
+                whileHover={{ scale: 1.1 }} 
+                whileTap={{ scale: 0.9 }}
+              >
                 <X className="w-4 h-4 text-gray-600 dark:text-gray-300" />
               </motion.button>
               <div className="p-8 text-center">
@@ -517,9 +649,32 @@ export function CompletarCadastroVoluntario() {
                 <motion.h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
                   Cadastro de Voluntário Completo!
                 </motion.h3>
-                <motion.p className="text-gray-600 dark:text-gray-300 leading-relaxed" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-                  Obrigado por se cadastrar como voluntário!
-                </motion.p>
+                
+                {isNewUser ? (
+                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+                    <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+                      Bem-vindo! Seu cadastro foi criado com sucesso.
+                    </p>
+                    <div className="bg-blue-50 dark:bg-gray-700 rounded-lg p-4 mb-4">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Sua senha padrão é:
+                      </p>
+                      <div className="bg-white dark:bg-gray-600 rounded border px-3 py-2 font-mono text-lg text-center font-bold text-blue-600 dark:text-blue-400">
+                        {generatedPassword}
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        Guarde esta senha em local seguro. Você pode alterá-la após fazer login.
+                      </p>
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      Clique no X para ir para a tela de login.
+                    </p>
+                  </motion.div>
+                ) : (
+                  <motion.p className="text-gray-600 dark:text-gray-300 leading-relaxed" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+                    Obrigado por completar seu cadastro como voluntário!
+                  </motion.p>
+                )}
               </div>
             </motion.div>
           </motion.div>
@@ -607,16 +762,21 @@ export function CompletarCadastroVoluntario() {
                       <User className="w-6 h-6" />
                       Dados Pessoais
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {renderFieldWithState('nomeCompleto', (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">                      {renderFieldWithState('nomeCompleto', (
                         <div>
-                          <label className={formClasses.label}>Nome Completo *</label>
+                          <label className={formClasses.label}>
+                            Nome Completo *
+                            {readOnlyFields.has('nomeCompleto') && (
+                              <span className="text-xs text-gray-500 ml-1">(vindos do cadastro)</span>
+                            )}
+                          </label>
                           <input 
                             type="text" 
-                            className={formClasses.input} 
+                            className={getFieldClasses('nomeCompleto')}
                             value={formData.nomeCompleto} 
                             onChange={e => handleFieldChange('nomeCompleto', e.target.value)} 
-                            placeholder="Ex: João da Silva" 
+                            placeholder="Ex: João da Silva"
+                            readOnly={readOnlyFields.has('nomeCompleto')}
                           />
                           {errors.nomeCompleto && <span className={formClasses.error}>{errors.nomeCompleto}</span>}
                         </div>
@@ -650,17 +810,22 @@ export function CompletarCadastroVoluntario() {
                           </select>
                           {errors.genero && <span className={formClasses.error}>{errors.genero}</span>}
                         </div>
-                      ))}
-                      {renderFieldWithState('cpf', (
+                      ))}                      {renderFieldWithState('cpf', (
                         <div>
-                          <label className={formClasses.label}>CPF *</label>
+                          <label className={formClasses.label}>
+                            CPF *
+                            {readOnlyFields.has('cpf') && (
+                              <span className="text-xs text-gray-500 ml-1">(vindos do cadastro)</span>
+                            )}
+                          </label>
                           <input 
                             type="text" 
-                            className={formClasses.input} 
+                            className={getFieldClasses('cpf')}
                             value={formData.cpf} 
-                            onChange={e => handleMaskedFieldChange('cpf', e.target.value)} 
-                            maxLength={14} 
+                            onChange={e => handleFieldChange('cpf', e.target.value)}
                             placeholder="000.000.000-00" 
+                            readOnly={readOnlyFields.has('cpf')}
+                            title={readOnlyFields.has('cpf') ? "CPF foi informado na primeira fase do cadastro" : ""}
                           />
                           {errors.cpf && <span className={formClasses.error}>{errors.cpf}</span>}
                         </div>
@@ -679,11 +844,22 @@ export function CompletarCadastroVoluntario() {
                           </select>
                           {errors.faixaSalarial && <span className="text-red-500 text-xs">{errors.faixaSalarial}</span>}
                         </div>
-                      ))}
-                      {renderFieldWithState('email', (
+                      ))}                      {renderFieldWithState('email', (
                         <div>
-                          <label className="block text-sm font-medium mb-1">Email *</label>
-                          <input type="email" className="input" value={formData.email} onChange={e => handleFieldChange('email', e.target.value)} placeholder="Ex: joao@email.com" />
+                          <label className="block text-sm font-medium mb-1">
+                            Email *
+                            {readOnlyFields.has('email') && (
+                              <span className="text-xs text-gray-500 ml-1">(vindos do cadastro)</span>
+                            )}
+                          </label>
+                          <input 
+                            type="email" 
+                            className={getFieldClasses('email', formClasses.input)}
+                            value={formData.email} 
+                            onChange={e => handleFieldChange('email', e.target.value)} 
+                            placeholder="Ex: joao@email.com"
+                            readOnly={readOnlyFields.has('email')}
+                          />
                           {errors.email && <span className="text-red-500 text-xs">{errors.email}</span>}
                         </div>
                       ))}

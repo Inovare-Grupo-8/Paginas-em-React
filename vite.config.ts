@@ -9,6 +9,13 @@ export default defineConfig(() => ({
     host: "::",
     port: 3030,
     historyApiFallback: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '')
+      }
+    }
   },
   plugins: [
     react(),

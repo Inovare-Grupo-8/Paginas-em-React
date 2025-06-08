@@ -10,13 +10,14 @@ import { toast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, User, Clock, Menu, History, ChevronRight, Users, Activity, Sun, Moon, Home as HomeIcon, Phone, Mail, MessageSquare, FileText, UserCheck, Check, X, Eye, ThumbsUp, ThumbsDown, AlertTriangle, UserPlus, Shield, Lock, Upload, Search, Filter, EyeOff, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Calendar as CalendarIcon, User, Clock, Menu, History, ChevronRight, Users, UserCheck, Activity, Sun, Moon, Home as HomeIcon, Phone, Mail, MessageSquare, FileText, Check, X, Eye, ThumbsUp, ThumbsDown, AlertTriangle, UserPlus, Search, Filter, AlertCircle, EyeOff, Shield, Lock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useProfileImage } from "@/components/useProfileImage";
 import { useThemeToggleWithNotification } from "@/hooks/useThemeToggleWithNotification";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import VoluntarioApiService, { VoluntarioListagem, VoluntarioStatus } from "@/services/voluntarioApi";
 
 // Interface para dados do assistente social
 interface AssistenteSocialData {
@@ -33,22 +34,26 @@ interface AssistenteSocialData {
   avaliacaoMedia: number;
 }
 
-// Interface para voluntário
+// Interface para voluntário (compatível com a API)
 interface Voluntario {
-  id: string;
+  idUsuario: number;
+  idVoluntario: number;
   nome: string;
   sobrenome: string;
   email: string;
   telefone?: string;
   cpf?: string;
   crp?: string;
-  especialidade: string;
+  funcao?: string;
+  areaOrientacao?: string;
+  especialidade?: string; // Para compatibilidade com código existente
   experiencia?: string;
   bio?: string;
   foto?: string;
   status: "ativo" | "inativo" | "pendente";
   dataCadastro: Date;
   ultimoAcesso?: Date;
+  ativo?: boolean;
 }
 
 // Dados simulados do assistente social
@@ -65,47 +70,22 @@ const assistenteSocialData: AssistenteSocialData = {
   atendimentosRealizados: 127,
   avaliacaoMedia: 4.8
 };
-
-// Dados simulados de voluntários
-const voluntariosData: Voluntario[] = [
-  {
-    id: "vol001",
-    nome: "Dr. João",
-    sobrenome: "Silva",
-    email: "joao.silva@voluntario.com",
-    especialidade: "Psicologia",
-    status: "ativo",
-    dataCadastro: new Date(2025, 3, 15),
-    ultimoAcesso: new Date(2025, 4, 29)
-  },
-  {
-    id: "vol002",
-    nome: "Dra. Ana",
-    sobrenome: "Costa",
-    email: "ana.costa@voluntario.com",
-    especialidade: "Serviço Social",
-    status: "ativo",
-    dataCadastro: new Date(2025, 3, 20),
-    ultimoAcesso: new Date(2025, 4, 28)
-  },
-  {
-    id: "vol003",
-    nome: "Prof. Carlos",
-    sobrenome: "Mendes",
-    email: "carlos.mendes@voluntario.com",
-    especialidade: "Orientação Profissional",
-    status: "inativo",
-    dataCadastro: new Date(2025, 2, 10),
-    ultimoAcesso: new Date(2025, 4, 15)
-  }
-];
-
 // Itens de navegação para o assistente social
 const assistenteSocialNavItems = [
   {
     path: "/assistente-social",
     label: "Home",
     icon: <HomeIcon className="w-6 h-6" color="#ED4231" />
+  },
+  {
+    path: "/classificacao-usuarios",
+    label: "Classificar Usuários",
+    icon: <UserCheck className="w-6 h-6" color="#ED4231" />
+  },
+  {
+    path: '/cadastro-assistente',
+    label: 'Cadastrar Assistente', 
+    icon: <UserPlus className="w-6 h-6" color="#ED4231" />,
   },
   {
     path: "/cadastro-voluntario",
@@ -122,11 +102,14 @@ const assistenteSocialNavItems = [
 const CadastroVoluntario = () => {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
+  const [loadingVoluntarios, setLoadingVoluntarios] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { profileImage } = useProfileImage();
   const { theme, toggleTheme } = useThemeToggleWithNotification();
+  
   // Estados para formulário de cadastro
-  const [currentStep, setCurrentStep] = useState(1);  const [formData, setFormData] = useState({
+  const [currentStep, setCurrentStep] = useState(1);
+  const [formData, setFormData] = useState({
     nome: "",
     sobrenome: "",
     email: "",
@@ -139,23 +122,64 @@ const CadastroVoluntario = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("todos");
-  
-  // Estados para validação em tempo real
+    // Estados para lista de voluntários
+  const [voluntarios, setVoluntarios] = useState<Voluntario[]>([]);
+  const [voluntariosOriginal, setVoluntariosOriginal] = useState<VoluntarioListagem[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [passwordStrength, setPasswordStrength] = useState({
     score: 0,
     feedback: ""
-  });  // Estados para controle da interface
-  const [voluntarios, setVoluntarios] = useState<Voluntario[]>(voluntariosData);
+  });
+  
+  // Estados para controle da interface
   const [isProcessing, setIsProcessing] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
 
+  // Função para carregar voluntários da API
+  const carregarVoluntarios = async () => {
+    try {
+      setLoadingVoluntarios(true);
+      const dadosApi = await VoluntarioApiService.listarVoluntarios();
+      setVoluntariosOriginal(dadosApi);
+      
+      // Converter dados da API para o formato do componente
+      const voluntariosConvertidos: Voluntario[] = dadosApi.map(vol => ({
+        idUsuario: vol.idUsuario,
+        idVoluntario: vol.idVoluntario,
+        nome: vol.nome,
+        sobrenome: vol.sobrenome,
+        email: vol.email,
+        funcao: vol.funcao,
+        areaOrientacao: vol.areaOrientacao,
+        especialidade: vol.funcao || vol.areaOrientacao || "Não especificado",
+        status: VoluntarioApiService.determinarStatus(vol),
+        dataCadastro: new Date(vol.dataCadastro),
+        ultimoAcesso: vol.ultimoAcesso ? new Date(vol.ultimoAcesso) : undefined,
+        ativo: vol.ativo
+      }));
+      
+      setVoluntarios(voluntariosConvertidos);
+    } catch (error) {
+      console.error('Erro ao carregar voluntários:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar a lista de voluntários.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingVoluntarios(false);
+    }
+  };
+
   useEffect(() => {
-    // Simular carregamento de dados
+    // Carregar dados iniciais
     const loadData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await Promise.all([
+        new Promise(resolve => setTimeout(resolve, 1000)), // Simular delay
+        carregarVoluntarios()
+      ]);
       setLoading(false);
     };
     
@@ -301,10 +325,14 @@ const CadastroVoluntario = () => {
       validarCampo(campo, valorFormatado);
     }, 300);
   };
-
   // Função para formatar data
   const formatarData = (data: Date) => {
     return format(data, "dd/MM/yyyy", { locale: ptBR });
+  };
+
+  // Função para formatar data da API
+  const formatarDataApi = (dataIso?: string) => {
+    return VoluntarioApiService.formatarData(dataIso);
   };
 
   // Função para validar email
@@ -323,9 +351,9 @@ const CadastroVoluntario = () => {
       erros.push("Email é obrigatório");
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       erros.push("Email inválido");
-    }
-
-    if (formData.cpf && !validarCPF(formData.cpf)) {
+    }    if (!formData.cpf.trim()) {
+      erros.push("CPF é obrigatório");
+    } else if (!validarCPF(formData.cpf)) {
       erros.push("CPF inválido");
     }
 
@@ -358,19 +386,19 @@ const CadastroVoluntario = () => {
     }
 
     return true;
-  };
-  // Função para validar step atual
+  };  // Função para validar step atual
   const validarStep = (step: number) => {
     switch (step) {
       case 1:
         return formData.nome.trim() && formData.sobrenome.trim() && formData.email.trim() && 
-               /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
+               /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) && 
+               formData.cpf.trim() && validarCPF(formData.cpf);
       case 2:
         return formData.senha.length >= 6 && formData.senha === formData.confirmarSenha;
       default:
         return true;
     }
-  };  // Navegação entre steps
+  };// Navegação entre steps
   const proximoStep = () => {
     if (validarStep(currentStep)) {
       if (currentStep === 3) {
@@ -399,27 +427,73 @@ const CadastroVoluntario = () => {
       setShowConfirmModal(true);
     }
   };
-
   // Função para confirmar cadastro
   const confirmarCadastro = async () => {
     setIsProcessing(true);
     
-    try {
-      // Simular API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-        // Criar novo voluntário
-      const novoVoluntario: Voluntario = {
-        id: `vol${Date.now()}`,
+    try {      // Primeira fase: cadastro básico
+      const primeiraFaseData = {
         nome: formData.nome,
         sobrenome: formData.sobrenome,
         email: formData.email,
-        especialidade: "Não especificado",
-        status: "ativo",
-        dataCadastro: new Date()
-      };
-      
-      // Adicionar à lista
-      setVoluntarios(prev => [novoVoluntario, ...prev]);        // Limpar formulário
+        cpf: formData.cpf.replace(/\D/g, ''), // Remove formatting for backend
+        senha: formData.senha
+      };const response1 = await fetch('http://localhost:8080/usuarios/voluntario/fase1', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(primeiraFaseData),
+      });
+
+      if (!response1.ok) {
+        const errorData = await response1.json();
+        throw new Error(errorData.message || 'Erro ao cadastrar primeira fase');
+      }      const fase1Result = await response1.json();
+      const userId = fase1Result.idUsuario;      // Enviar credenciais por email
+      try {
+        const credentialsResponse = await fetch('http://localhost:8080/usuarios/voluntario/enviar-credenciais', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            nome: formData.nome,
+            senha: formData.senha
+          }),
+        });
+
+        if (!credentialsResponse.ok) {
+          const errorData = await credentialsResponse.json().catch(() => ({}));
+          console.warn('Erro ao enviar credenciais por email:', errorData.message || 'Erro desconhecido');
+          
+          toast({
+            title: "Aviso",
+            description: "Cadastro realizado com sucesso, mas houve falha no envio do email de credenciais.",
+            variant: "default",
+          });
+        } else {
+          console.log('Credenciais enviadas por email com sucesso');
+        }
+      } catch (emailError) {
+        console.warn('Erro ao enviar email de credenciais:', emailError);
+        
+        toast({
+          title: "Aviso", 
+          description: "Cadastro realizado com sucesso, mas houve falha no envio do email de credenciais.",
+          variant: "default",
+        });
+      }      toast({
+        title: "Primeira fase concluída!",
+        description: `${formData.nome}, você receberá um email para completar seu cadastro.`,
+        variant: "default",
+      });
+
+      // Recarregar lista de voluntários da API
+      await carregarVoluntarios();
+
+      // Limpar formulário
       setFormData({
         nome: "",
         sobrenome: "",
@@ -430,17 +504,14 @@ const CadastroVoluntario = () => {
         confirmarSenha: ""
       });
       
+      setCurrentStep(1);
       setShowConfirmModal(false);
       
-      toast({
-        title: "Voluntário cadastrado!",
-        description: `${formData.nome} ${formData.sobrenome} foi cadastrado como voluntário.`,
-        variant: "default",
-      });
     } catch (error) {
+      console.error('Erro ao cadastrar voluntário:', error);
       toast({
         title: "Erro ao cadastrar",
-        description: "Ocorreu um erro ao cadastrar o voluntário. Tente novamente.",
+        description: error instanceof Error ? error.message : "Ocorreu um erro ao cadastrar o voluntário. Tente novamente.",
         variant: "destructive",
       });
     } finally {
@@ -697,29 +768,9 @@ const CadastroVoluntario = () => {
                                   {fieldErrors.email}
                                 </p>
                               )}
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            </div>                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
-                                <Label htmlFor="telefone">Telefone</Label>
-                                <Input
-                                  id="telefone"
-                                  type="text"
-                                  value={formData.telefone}
-                                  onChange={(e) => handleFieldChange('telefone', e.target.value)}
-                                  placeholder="(11) 99999-9999"
-                                  className={`mt-1 ${fieldErrors.telefone ? 'border-red-500' : ''}`}
-                                />
-                                {fieldErrors.telefone && (
-                                  <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                                    <AlertCircle className="w-3 h-3" />
-                                    {fieldErrors.telefone}
-                                  </p>
-                                )}
-                              </div>
-                              
-                              <div>
-                                <Label htmlFor="cpf">CPF</Label>
+                                <Label htmlFor="cpf">CPF *</Label>
                                 <Input
                                   id="cpf"
                                   type="text"
@@ -727,6 +778,7 @@ const CadastroVoluntario = () => {
                                   onChange={(e) => handleFieldChange('cpf', e.target.value)}
                                   placeholder="000.000.000-00"
                                   className={`mt-1 ${fieldErrors.cpf ? 'border-red-500' : ''}`}
+                                  required
                                 />
                                 {fieldErrors.cpf && (
                                   <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
@@ -890,7 +942,8 @@ const CadastroVoluntario = () => {
                       </form>
                     </CardContent>
                   </Card>
-                </motion.div>                {/* Lista de voluntários cadastrados */}
+                </motion.div>                
+                {/* Lista de voluntários cadastrados */}
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -939,22 +992,27 @@ const CadastroVoluntario = () => {
                             </SelectContent>
                           </Select>
                         </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
+                      </div>                    </CardHeader>                    <CardContent>
                       <div className="space-y-3 max-h-96 overflow-y-auto">
-                        {voluntarios
-                          .filter(vol => {
-                            const matchSearch = vol.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                              vol.sobrenome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                              vol.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                              vol.especialidade.toLowerCase().includes(searchTerm.toLowerCase());
-                            const matchStatus = statusFilter === "todos" || vol.status === statusFilter;
+                        {loadingVoluntarios ? (
+                          <div className="flex items-center justify-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ED4231]"></div>
+                            <span className="ml-3 text-sm text-gray-500">Carregando voluntários...</span>
+                          </div>
+                        ) : (
+                          <>
+                            {voluntarios
+                              .filter(vol => {
+                                const matchSearch = vol.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                                  vol.sobrenome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                                  vol.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                                  vol.especialidade.toLowerCase().includes(searchTerm.toLowerCase());
+                                const matchStatus = statusFilter === "todos" || vol.status === statusFilter;
                             return matchSearch && matchStatus;
                           })
                           .map((voluntario) => (
                           <motion.div 
-                            key={voluntario.id} 
+                            key={voluntario.idUsuario}
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all duration-200 hover:shadow-md"
@@ -980,8 +1038,7 @@ const CadastroVoluntario = () => {
                               <div className="flex items-center gap-1">
                                 <User className="w-3 h-3" />
                                 <p>{voluntario.especialidade}</p>
-                              </div>
-                              <div className="flex items-center gap-1">
+                              </div>                              <div className="flex items-center gap-1">
                                 <CalendarIcon className="w-3 h-3" />
                                 <p>Cadastrado em: {formatarData(voluntario.dataCadastro)}</p>
                               </div>
@@ -989,6 +1046,12 @@ const CadastroVoluntario = () => {
                                 <div className="flex items-center gap-1">
                                   <Clock className="w-3 h-3" />
                                   <p>Último acesso: {formatarData(voluntario.ultimoAcesso)}</p>
+                                </div>
+                              )}
+                              {!voluntario.ultimoAcesso && (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  <p className="text-yellow-600 dark:text-yellow-400">Nunca acessou</p>
                                 </div>
                               )}
                             </div>
@@ -1012,9 +1075,10 @@ const CadastroVoluntario = () => {
                                 className="text-[#ED4231] text-xs mt-1"
                               >
                                 Limpar busca
-                              </Button>
-                            )}
+                              </Button>                            )}
                           </div>
+                        )}
+                          </>
                         )}
                       </div>
                     </CardContent>

@@ -63,19 +63,25 @@ export function CompletarCadastroUsuarioAssistido() {
 
     // State for error feedback when submitting
     const [submitError, setSubmitError] = useState<string | null>(null);    // New state to store user ID from first phase
-    const [userId, setUserId] = useState<number | null>(null);
-
-    // Interface para os dados da primeira fase
+    const [userId, setUserId] = useState<number | null>(null);    // Interface para os dados da primeira fase
     interface PrimeiraFaseData {
         nome?: string;
+        sobrenome?: string;
         email?: string;
+        cpf?: string;
         dataNascimento?: string;
         telefone?: string;
         id?: number;
-    }
-
-    // Estado para controle dos dados da primeira fase
+    }    // Estado para controle dos dados da primeira fase
     const [primeiraFaseData, setPrimeiraFaseData] = useState<PrimeiraFaseData | null>(null);
+      // Estado para controlar campos somente leitura (dados que vieram do banco)
+    const [readOnlyFields, setReadOnlyFields] = useState<Set<string>>(new Set());
+    
+    // Estado para controlar se é um usuário novo (sem dados no banco)
+    const [isNewUser, setIsNewUser] = useState(false);
+    
+    // Estado para a senha padrão gerada
+    const [generatedPassword, setGeneratedPassword] = useState<string>("");
 
     const [currentStep, setCurrentStep] = useState(1);
     const [completedFields, setCompletedFields] = useState(new Set());
@@ -96,6 +102,14 @@ export function CompletarCadastroUsuarioAssistido() {
     // States for user fetch loading/error
     const [fetchingUser, setFetchingUser] = useState(false);
     const [fetchUserError, setFetchUserError] = useState<string | null>(null);
+
+    // Função para gerar senha padrão (3 primeiros dígitos do CPF + data de nascimento)
+    const generateDefaultPassword = (cpf: string, dataNascimento: string) => {
+        const cpfDigits = cpf.replace(/\D/g, ''); // Remove caracteres não numéricos
+        const firstThreeCpfDigits = cpfDigits.substring(0, 3);
+        const birthDate = dataNascimento.replace(/\D/g, ''); // Remove caracteres não numéricos (formato: DDMMAAAA)
+        return firstThreeCpfDigits + birthDate;
+    };
 
     // Lista de profissões comuns
     const commonProfessions = [
@@ -531,8 +545,7 @@ export function CompletarCadastroUsuarioAssistido() {
         });
 
         return isValid;
-    };
-    useEffect(() => {
+    };    useEffect(() => {
         if (!idUsuario) {
             console.log("idUsuario não encontrado na URL.");
             return;
@@ -543,32 +556,118 @@ export function CompletarCadastroUsuarioAssistido() {
         fetch(`http://localhost:8080/usuarios/verificar-cadastro?idUsuario=${idUsuario}`)
             .then(async (res) => {
                 console.log("Resposta da API:", res);
-                if (!res.ok) throw new Error('Erro ao buscar dados do usuário.');                const data = await res.json();
+                if (!res.ok) {
+                    // Se não encontrou o usuário, é um usuário novo
+                    setIsNewUser(true);
+                    setReadOnlyFields(new Set()); // Nenhum campo é readonly
+                    throw new Error('Usuário não encontrado - pode cadastrar do zero.');
+                }
+                const data = await res.json();
                 console.log("Dados recebidos:", data);
-                setFormData((prev) => ({
-                    ...prev,
-                    nomeCompleto: (data.nome && data.sobrenome) ? `${data.nome} ${data.sobrenome}` : (data.nome || prev.nomeCompleto),
-                    email: data.email || prev.email,
-                    dataNascimento: data.dataNascimento || prev.dataNascimento,
-                }));
+                
+                // Usuário encontrado no banco - alguns campos serão readonly
+                setIsNewUser(false);
+                
+                // Campos que vieram do banco e não devem ser editados
+                const fieldsFromDB = new Set<string>();
+                
+                const updatedFormData = { ...formData };
+                
+                if (data.nome && data.sobrenome) {
+                    updatedFormData.nomeCompleto = `${data.nome} ${data.sobrenome}`;
+                    fieldsFromDB.add('nomeCompleto');
+                }
+                if (data.email) {
+                    updatedFormData.email = data.email;
+                    fieldsFromDB.add('email');
+                }
+                if (data.cpf) {
+                    updatedFormData.cpf = data.cpf;
+                    fieldsFromDB.add('cpf');
+                }
+                if (data.dataNascimento) {
+                    updatedFormData.dataNascimento = data.dataNascimento;
+                }
+                
+                setFormData(updatedFormData);
+                setReadOnlyFields(fieldsFromDB);
+                
+                // Salva dados da primeira fase
+                setPrimeiraFaseData({
+                    nome: data.nome,
+                    sobrenome: data.sobrenome,
+                    email: data.email,
+                    cpf: data.cpf,
+                    dataNascimento: data.dataNascimento,
+                    id: data.idUsuario
+                });
+            })
+            .catch((error) => {
+                console.error("Erro ao buscar usuário:", error);
+                setFetchUserError(error.message);
+                // Se houve erro na busca, assume que é usuário novo
+                setIsNewUser(true);
+                setReadOnlyFields(new Set());
             })
             .finally(() => setFetchingUser(false));
-    }, [idUsuario]);
-
-    // Busca usuário por email se idUsuario não existir ou for 0
+    }, [idUsuario]);    // Busca usuário por email se idUsuario não existir ou for 0
     useEffect(() => {
         if ((!idUsuario || idUsuario === '0') && formData.email && fieldStates.email === 'valid') {
             setFetchingUser(true);
             // Não mostra erro, apenas tenta preencher se encontrar
             fetch(`http://localhost:8080/usuarios/verificar-cadastro?email=${encodeURIComponent(formData.email)}`)
                 .then(async (res) => {
-                    if (!res.ok) throw new Error('Usuário não encontrado com este email.');                    const data = await res.json();
-                    setFormData((prev) => ({
-                        ...prev,
-                        nomeCompleto: (data.nome && data.sobrenome) ? `${data.nome} ${data.sobrenome}` : (data.nome || prev.nomeCompleto),
-                        email: data.email || prev.email,
-                        dataNascimento: data.dataNascimento || prev.dataNascimento,
-                    }));
+                    if (!res.ok) {
+                        // Se não encontrou o usuário, é um usuário novo
+                        setIsNewUser(true);
+                        setReadOnlyFields(new Set()); // Nenhum campo é readonly
+                        throw new Error('Usuário não encontrado com este email.');
+                    }
+                    
+                    const data = await res.json();
+                    
+                    // Usuário encontrado no banco - alguns campos serão readonly
+                    setIsNewUser(false);
+                    
+                    // Determinar quais campos vieram do banco e devem ser somente leitura
+                    const fieldsFromDB = new Set<string>();
+                    
+                    // Atualizar os dados do formulário
+                    const updatedFormData = { ...formData };
+                    
+                    if (data.nome) {
+                        fieldsFromDB.add('nomeCompleto');
+                        updatedFormData.nomeCompleto = data.sobrenome ? `${data.nome} ${data.sobrenome}` : data.nome;
+                    }
+                    if (data.email) {
+                        fieldsFromDB.add('email');
+                        updatedFormData.email = data.email;
+                    }
+                    if (data.cpf) {
+                        fieldsFromDB.add('cpf');
+                        updatedFormData.cpf = data.cpf;
+                    }
+                    if (data.dataNascimento) {
+                        updatedFormData.dataNascimento = data.dataNascimento;
+                    }
+                    
+                    setFormData(updatedFormData);
+                    setReadOnlyFields(fieldsFromDB);
+                    
+                    // Salva dados da primeira fase
+                    setPrimeiraFaseData({
+                        nome: data.nome,
+                        sobrenome: data.sobrenome,
+                        email: data.email,
+                        cpf: data.cpf,
+                        dataNascimento: data.dataNascimento,
+                        id: data.idUsuario
+                    });
+                })
+                .catch((error) => {
+                    // Se houve erro na busca, assume que é usuário novo
+                    setIsNewUser(true);
+                    setReadOnlyFields(new Set());
                 })
                 .finally(() => setFetchingUser(false));
         }
@@ -619,7 +718,7 @@ export function CompletarCadastroUsuarioAssistido() {
               return {
                 nomeCompleto: formData.nomeCompleto,
                 email: formData.email,
-                cpf: formData.cpf.replace(/\D/g, ''), // Remove formatting
+                cpf: formData.cpf.replace(/\D/g, ''), 
                 dataNascimento: formatDateForBackend(formData.dataNascimento),
                 faixaSalarial: convertSalaryRange(formData.faixaSalarial),
                 genero: formData.genero,
@@ -629,7 +728,7 @@ export function CompletarCadastroUsuarioAssistido() {
                 sugestaoOutraArea: formData.sugestaoOutraArea || null,
                 tipo: "NAO_CLASSIFICADO", 
                 endereco: {
-                    cep: formData.cep.replace(/\D/g, ''), // Remove formatting
+                    cep: formData.cep.replace(/\D/g, ''), 
                     numero: formData.numero,
                     complemento: formData.complemento || null
                 },
@@ -640,9 +739,7 @@ export function CompletarCadastroUsuarioAssistido() {
             console.error('Error transforming payload:', error);
             throw new Error('Erro ao processar dados do formulário');
         }
-    };
-
-    // Updated handleSubmit function
+    };    // Updated handleSubmit function
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
@@ -654,8 +751,20 @@ export function CompletarCadastroUsuarioAssistido() {
             }
             
             if (validateForm()) {
+                // Se é um usuário novo, gerar senha padrão
+                let passwordToShow = "";
+                if (isNewUser && formData.cpf && formData.dataNascimento) {
+                    passwordToShow = generateDefaultPassword(formData.cpf, formData.dataNascimento);
+                    setGeneratedPassword(passwordToShow);
+                }
+                
                 // Transform form data to backend format
                 const payload = transformToBackendPayload(formData);
+                
+                // Se é usuário novo, adicionar senha padrão ao payload
+                if (isNewUser && passwordToShow) {
+                    payload.senha = passwordToShow;
+                }
                 
                 let url = 'http://localhost:8080/usuarios/fase2';
                 if (idUsuario) {
@@ -676,10 +785,20 @@ export function CompletarCadastroUsuarioAssistido() {
                     throw new Error('Erro ao completar cadastro');
                 }
                 
-                // Success: clear local storage and show modal                localStorage.removeItem('cadastro_usuario_assistido_form_data');
+                // Success: clear local storage and show modal
+                localStorage.removeItem('cadastro_usuario_assistido_form_data');
                 localStorage.removeItem('cadastro_usuario_assistido_form_timestamp');
-                // Redireciona para /login após sucesso
-                navigate('/login');
+                
+                // Mostrar modal de sucesso
+                setShowSuccessModal(true);
+                
+                // Redirecionar após 3 segundos se for usuário existente, ou após usuário fechar modal se for novo
+                if (!isNewUser) {
+                    setTimeout(() => {
+                        navigate('/login');
+                    }, 3000);
+                }
+                
                 return;
             } else {
                 console.log('Formulário com erros:', errors);
@@ -692,7 +811,14 @@ export function CompletarCadastroUsuarioAssistido() {
             setIsSubmitting(false);
         }
     };    const closeSuccessModal = () => {
-        setShowSuccessModal(false);        setFormData({
+        setShowSuccessModal(false);
+        
+        // Se foi um usuário novo, navegar para login
+        if (isNewUser) {
+            navigate('/login');
+        }
+        
+        setFormData({
             nomeCompleto: "",
             telefone: "",
             dataNascimento: "",
@@ -810,16 +936,14 @@ export function CompletarCadastroUsuarioAssistido() {
                                     >
                                         <CheckCircle2 className="w-10 h-10 text-white" />
                                     </motion.div>
-                                </motion.div>
-
-                                {/* Success Message */}
+                                </motion.div>                                {/* Success Message */}
                                 <motion.h3
                                     className="text-2xl font-bold text-gray-900 dark:text-white mb-4"
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.3 }}
                                 >
-                                    Inscrição Realizada com Sucesso!
+                                    {isNewUser ? "Cadastro Realizado com Sucesso!" : "Inscrição Realizada com Sucesso!"}
                                 </motion.h3>
 
                                 <motion.div
@@ -829,8 +953,40 @@ export function CompletarCadastroUsuarioAssistido() {
                                     transition={{ delay: 0.4 }}
                                 >
                                     <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
-                                        Obrigado por se inscrever no projeto <span className="font-semibold text-indigo-600 dark:text-indigo-400">Mãos Amigas</span>.
+                                        {isNewUser 
+                                            ? `Seu cadastro foi criado com sucesso no projeto ` 
+                                            : `Obrigado por se inscrever no projeto `
+                                        }
+                                        <span className="font-semibold text-indigo-600 dark:text-indigo-400">Mãos Amigas</span>.
                                     </p>
+
+                                    {/* Mostrar senha padrão apenas para usuários novos */}
+                                    {isNewUser && generatedPassword && (
+                                        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 p-4 rounded-2xl border border-amber-200/50 dark:border-amber-800/30 mb-4">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <motion.div
+                                                    animate={{ scale: [1, 1.1, 1] }}
+                                                    transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                                                >
+                                                    <TriangleAlert className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                                                </motion.div>
+                                                <span className="font-medium text-amber-800 dark:text-amber-200">
+                                                    Senha Padrão Gerada
+                                                </span>
+                                            </div>
+                                            <div className="text-sm text-amber-700 dark:text-amber-300 space-y-2">
+                                                <p>Uma senha padrão foi criada para você:</p>
+                                                <div className="bg-white/70 dark:bg-gray-700/70 p-3 rounded-lg border border-amber-200 dark:border-amber-600">
+                                                    <code className="text-lg font-mono font-bold text-gray-800 dark:text-gray-200">
+                                                        {generatedPassword}
+                                                    </code>
+                                                </div>
+                                                <p className="text-xs">
+                                                    <strong>Importante:</strong> Anote essa senha! Você pode alterá-la após fazer login.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4 rounded-2xl border border-blue-200/50 dark:border-blue-800/30">
                                         <div className="flex items-center gap-3 mb-2">
@@ -845,7 +1001,10 @@ export function CompletarCadastroUsuarioAssistido() {
                                             </span>
                                         </div>
                                         <p className="text-sm text-blue-700 dark:text-blue-300">
-                                            Uma <strong>assistente social</strong> entrará em contato com você em breve para agendar sua orientação na área selecionada.
+                                            {isNewUser 
+                                                ? "Agora você pode fazer login no sistema e uma assistente social entrará em contato para agendar sua orientação."
+                                                : "Uma assistente social entrará em contato com você em breve para agendar sua orientação na área selecionada."
+                                            }
                                         </p>
                                     </div>
                                 </motion.div>

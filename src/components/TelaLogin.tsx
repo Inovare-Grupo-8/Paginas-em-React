@@ -32,13 +32,12 @@ const TelaLogin: React.FC = () => {
         } else {
             navigate('/cadastro');
         }
-    };
-
-    // Estados para os campos de login e cadastro
+    };    // Estados para os campos de login e cadastro
     const [loginEmail, setLoginEmail] = useState('');
     const [loginSenha, setLoginSenha] = useState('');
     const [cadastroNome, setCadastroNome] = useState('');
     const [cadastroSobrenome, setCadastroSobrenome] = useState('');
+    const [cadastroCpf, setCadastroCpf] = useState('');
     const [cadastroEmail, setCadastroEmail] = useState('');
     const [cadastroSenha, setCadastroSenha] = useState('');
     const [confirmaSenha, setConfirmaSenha] = useState('');
@@ -64,9 +63,7 @@ const TelaLogin: React.FC = () => {
             return 'Por favor, insira um email válido.';
         }
         return null;
-    };
-
-    const validarSenha = (senha: string): string | null => {
+    };    const validarSenha = (senha: string): string | null => {
         if (senha.length < 6) {
             return 'A senha deve ter pelo menos 6 caracteres.';
         } else if (!/[!@#$%^&*]/.test(senha)) {
@@ -75,8 +72,60 @@ const TelaLogin: React.FC = () => {
         return null;
     };
 
-    const validarCadastro = (): boolean => {
-        if (!cadastroNome || !cadastroSobrenome || !cadastroEmail || !cadastroSenha || !confirmaSenha) {
+    const validarCpf = (cpf: string): string | null => {
+        // Remove todos os caracteres não numéricos
+        const cpfLimpo = cpf.replace(/\D/g, '');
+        
+        // Verifica se tem 11 dígitos
+        if (cpfLimpo.length !== 11) {
+            return 'CPF deve ter 11 dígitos.';
+        }
+        
+        // Verifica se todos os dígitos são iguais
+        if (/^(\d)\1{10}$/.test(cpfLimpo)) {
+            return 'CPF inválido.';
+        }
+        
+        // Validação do algoritmo do CPF
+        let soma = 0;
+        let resto;
+        
+        // Validação do primeiro dígito verificador
+        for (let i = 1; i <= 9; i++) {
+            soma += parseInt(cpfLimpo.substring(i - 1, i)) * (11 - i);
+        }
+        resto = (soma * 10) % 11;
+        if (resto === 10 || resto === 11) resto = 0;
+        if (resto !== parseInt(cpfLimpo.substring(9, 10))) {
+            return 'CPF inválido.';
+        }
+        
+        soma = 0;
+        // Validação do segundo dígito verificador
+        for (let i = 1; i <= 10; i++) {
+            soma += parseInt(cpfLimpo.substring(i - 1, i)) * (12 - i);
+        }
+        resto = (soma * 10) % 11;
+        if (resto === 10 || resto === 11) resto = 0;
+        if (resto !== parseInt(cpfLimpo.substring(10, 11))) {
+            return 'CPF inválido.';
+        }
+        
+        return null;
+    };
+
+    const formatarCpf = (valor: string): string => {
+        // Remove tudo que não é dígito
+        const apenasNumeros = valor.replace(/\D/g, '');
+        
+        // Aplica a máscara XXX.XXX.XXX-XX
+        return apenasNumeros
+            .replace(/(\d{3})(\d)/, '$1.$2')
+            .replace(/(\d{3})(\d)/, '$1.$2')
+            .replace(/(\d{3})(\d{1,2})/, '$1-$2')
+            .replace(/(-\d{2})\d+?$/, '$1');
+    };    const validarCadastro = (): boolean => {
+        if (!cadastroNome || !cadastroSobrenome || !cadastroCpf || !cadastroEmail || !cadastroSenha || !confirmaSenha) {
             setModalErro('Por favor, preencha todos os campos.');
             return false;
         }
@@ -94,6 +143,11 @@ const TelaLogin: React.FC = () => {
         const erroSobrenome = validarSobrenome(cadastroSobrenome);
         if (erroSobrenome) {
             setModalErro(erroSobrenome);
+            return false;
+        }
+        const erroCpf = validarCpf(cadastroCpf);
+        if (erroCpf) {
+            setModalErro(erroCpf);
             return false;
         }
         const erroEmail = validarEmail(cadastroEmail);
@@ -156,18 +210,22 @@ const TelaLogin: React.FC = () => {
                 if (!data.tipo) {
                     setModalErro('Aguarde o contato da assistente social');
                     return;
-                }
-
-                const tipoUsuario = (data.tipo || '').toString().toLowerCase();
+                }                const tipoUsuario = (data.tipo || '').toString().toUpperCase();
                 switch (tipoUsuario) {
-                    case 'administrador':
-                        navigate('/home');
-                        break;
-                    case 'assistente social':
+                    case 'ADMINISTRADOR':
                         navigate('/assistente-social');
                         break;
-                    default:
+                    case 'VOLUNTARIO':
+                        navigate('/home');
+                        break;
+                    case 'VALOR_SOCIAL':
+                    case 'GRATUIDADE':
                         navigate('/home-user');
+                        break;
+                    default:
+                        // For NAO_CLASSIFICADO or any other unhandled types
+                        setModalErro('Entre em contato com a administração ou se teve o contato, espere que breve receberá a liberação para acessar o sistema');
+                        return;
                 }
             }
         } catch (error: any) {
@@ -187,10 +245,10 @@ const TelaLogin: React.FC = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
+                },                body: JSON.stringify({
                     nome: cadastroNome,
                     sobrenome: cadastroSobrenome,
+                    cpf: cadastroCpf.replace(/\D/g, ''), // Remove formatação do CPF
                     email: cadastroEmail,
                     senha: cadastroSenha
                 })
@@ -271,14 +329,24 @@ const TelaLogin: React.FC = () => {
                             onChange={(e) => setCadastroNome(e.target.value)}
                             required
                           />
-                        </div>
-                        <div className="input-field">
+                        </div>                        <div className="input-field">
                           <i className="fas fa-user"></i>
                           <input
                             type="text"
                             placeholder="Sobrenome"
                             value={cadastroSobrenome}
                             onChange={(e) => setCadastroSobrenome(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="input-field">
+                          <i className="fas fa-id-card"></i>
+                          <input
+                            type="text"
+                            placeholder="CPF"
+                            value={cadastroCpf}
+                            onChange={(e) => setCadastroCpf(formatarCpf(e.target.value))}
+                            maxLength={14}
                             required
                           />
                         </div>

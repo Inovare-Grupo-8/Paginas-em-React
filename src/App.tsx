@@ -28,6 +28,8 @@ import PagamentoUser from "@/components/PagamentoUser";
 import { UserProvider } from "@/contexts/UserContext";
 import { ProfessionalProvider } from "@/contexts/ProfessionalContext";
 import { CompletarCadastroVoluntario } from "@/components/CompletarCadastroVoluntario";
+import { ClassificacaoUsuarios } from "@/components/ClassificacaoUsuarios";
+import CadastroAssistenteSocial from "@/components/CadastroAssistenteSocial";
 
 const queryClient = new QueryClient();
 
@@ -79,11 +81,11 @@ const App = () => {
                       {/* Rota para o formulário de inscrição */}
                       <Route path="/completar-cadastro-usuario" element={<CompletarCadastroUsuarioAssistido />} />
                       {/* Rota para completar cadastro do assistido */}
-                      <Route path="/completar-cadastro-voluntario" element={<CompletarCadastroVoluntario />} />
-                      {/* Rotas da assistente social */}
-                      <Route path="/assistente-social" element={<AssistenteSocial />} />
+                      <Route path="/completar-cadastro-voluntario" element={<CompletarCadastroVoluntario />} />                      {/* Rotas da assistente social */}                      <Route path="/assistente-social" element={<AssistenteSocial />} />
                       <Route path="/profile-form-assistente-social" element={<ProfileFormAssistenteSocial />} />
+                      <Route path="/cadastro-assistente" element={<CadastroAssistenteSocial />} />
                       <Route path="/cadastro-voluntario" element={<CadastroVoluntario />} />
+                      <Route path="/classificacao-usuarios" element={<ClassificacaoUsuarios />} />
 
                       {/* Redirecionamento para a home do usuário como fallback */}
                       <Route path="/" element={<HomeUser />} />

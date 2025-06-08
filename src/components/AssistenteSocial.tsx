@@ -9,13 +9,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Calendar as CalendarIcon, User, Clock, Menu, History, ChevronRight, Users, Activity, Sun, Moon, Home as HomeIcon, Phone, Mail, MessageSquare, FileText, UserCheck, Check, X, Eye, ThumbsUp, ThumbsDown, AlertTriangle, UserPlus } from "lucide-react";
+import { Calendar as CalendarIcon, User, Clock, Menu, History, ChevronRight, Users, UserCheck, Activity, Sun, Moon, Home as HomeIcon, Phone, Mail, MessageSquare, FileText, Check, X, Eye, ThumbsUp, ThumbsDown, AlertTriangle, UserPlus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useProfileImage } from "@/components/useProfileImage";
 import { useThemeToggleWithNotification } from "@/hooks/useThemeToggleWithNotification";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ClassificacaoUsuarios } from "@/components/ClassificacaoUsuarios";
 
 // Interface para dados do assistente social
 interface AssistenteSocialData {
@@ -81,7 +82,7 @@ const assistenteSocialData: AssistenteSocialData = {
 };
 
 // Dados mockados de usuários do sistema
-const totalUsuarios = 127;
+// const totalUsuarios = 127; // Removido - agora será dinâmico
 
 // Dados mockados de atendimentos
 const atendimentosData: AtendimentoSocial[] = [
@@ -170,30 +171,44 @@ const assistenteSocialNavItems = [
   {
     path: "/assistente-social",
     label: "Home",
-    icon: <HomeIcon className="w-6 h-6" color="#ED4231" />
+    icon: <HomeIcon className="w-6 h-6" color="#ED4231" />,
+    section: "home"
+  },  {
+    path: "/classificacao-usuarios",
+    label: "Classificar Usuários",
+    icon: <UserCheck className="w-6 h-6" color="#ED4231" />,
+    section: "classificacao"
+  },
+  {
+    path: "/cadastro-assistente",
+    label: "Cadastrar Assistente",
+    icon: <UserPlus className="w-6 h-6" color="#ED4231" />,
+    section: "cadastro"
   },
   {
     path: "/cadastro-voluntario",
     label: "Cadastrar Voluntário",
-    icon: <UserPlus className="w-6 h-6" color="#ED4231" />
+    icon: <UserPlus className="w-6 h-6" color="#ED4231" />,
+    section: "cadastro"
   },
   {
     path: "/profile-form-assistente-social",
     label: "Editar Perfil",
-    icon: <User className="w-6 h-6" color="#ED4231" />
+    icon: <User className="w-6 h-6" color="#ED4231" />,
+    section: "perfil"
   }
 ];
 
 const AssistenteSocial = () => {
-  const location = useLocation();
-  const [loading, setLoading] = useState(true);
+  const location = useLocation();  const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [secaoAtiva, setSecaoAtiva] = useState("home"); // Novo estado para controlar seção ativa
   const { profileImage } = useProfileImage();
-  const { theme, toggleTheme } = useThemeToggleWithNotification();
-
-  // Estados para controle da interface
+  const { theme, toggleTheme } = useThemeToggleWithNotification();// Estados para controle da interface
   const [atendimentosHoje, setAtendimentosHoje] = useState<AtendimentoSocial[]>([]);
   const [proximosAtendimentos, setProximosAtendimentos] = useState<AtendimentoSocial[]>([]);
+  const [totalUsuarios, setTotalUsuarios] = useState<number>(0);
+  const [usuariosNaoClassificados, setUsuariosNaoClassificados] = useState<number>(0);
     // Estados para formulários
   const [formularios, setFormularios] = useState<FormularioInscricao[]>(formulariosPendentes);
   const [formularioSelecionado, setFormularioSelecionado] = useState<FormularioInscricao | null>(null);
@@ -202,14 +217,37 @@ const AssistenteSocial = () => {
   const [showReprovacaoModal, setShowReprovacaoModal] = useState(false);
   const [observacoes, setObservacoes] = useState("");
   const [tipoCandidato, setTipoCandidato] = useState<"multidisciplinar" | "valor_social" | "">("");
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  useEffect(() => {
+  const [isProcessing, setIsProcessing] = useState(false);  useEffect(() => {
     // Simular carregamento de dados
     const loadData = async () => {
       setLoading(true);
       
-      // Simular delay de API
+      try {
+        // Buscar total de usuários da API
+        const response = await fetch('http://localhost:8080/usuarios');
+        if (response.ok) {
+          const usuarios = await response.json();
+          setTotalUsuarios(usuarios.length);
+          
+          // Contar usuários não classificados
+          const naoClassificados = usuarios.filter((usuario: any) => 
+            usuario.tipo === "NAO_CLASSIFICADO" || usuario.tipo === "NÃO_CLASSIFICADO" || !usuario.tipo
+          );
+          setUsuariosNaoClassificados(naoClassificados.length);
+        } else {
+          console.error('Erro ao buscar usuários:', response.status);
+          // Manter valor padrão em caso de erro
+          setTotalUsuarios(0);
+          setUsuariosNaoClassificados(0);
+        }
+      } catch (error) {
+        console.error('Erro ao conectar com a API:', error);
+        // Manter valor padrão em caso de erro
+        setTotalUsuarios(0);
+        setUsuariosNaoClassificados(0);
+      }
+      
+      // Simular delay de API para outros dados
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Filtrar atendimentos de hoje
@@ -226,10 +264,27 @@ const AssistenteSocial = () => {
       setAtendimentosHoje(atendimentosDeHoje);
       setProximosAtendimentos(proximosAtend);
       setLoading(false);
-    };
-
-    loadData();
+    };    loadData();
   }, []);
+
+  // Função para atualizar contador após classificação
+  const atualizarContadorUsuarios = async () => {
+    try {
+      const response = await fetch('http://localhost:8080/usuarios');
+      if (response.ok) {
+        const usuarios = await response.json();
+        setTotalUsuarios(usuarios.length);
+        
+        // Contar usuários não classificados
+        const naoClassificados = usuarios.filter((usuario: any) => 
+          usuario.tipo === "NAO_CLASSIFICADO" || usuario.tipo === "NÃO_CLASSIFICADO" || !usuario.tipo
+        );
+        setUsuariosNaoClassificados(naoClassificados.length);
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar contador:', error);
+    }
+  };
 
   // Função para formatar data
   const formatarData = (data: Date) => {
@@ -448,34 +503,44 @@ const AssistenteSocial = () => {
             <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
               {assistenteSocialData.especialidade}
             </Badge>
-          </div>
-          
-          <SidebarMenu className="gap-4 text-sm md:text-base">
-            {assistenteSocialNavItems.map((item) => (
+          </div>          <SidebarMenu className="gap-4 text-sm md:text-base">            {assistenteSocialNavItems.map((item) => (
               <SidebarMenuItem key={item.path}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <SidebarMenuButton asChild className={`rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 ${location.pathname === item.path ? 'bg-[#EDF2FB] border-l-4 border-[#ED4231]' : ''}`}>
-                      <Link to={item.path} className="flex items-center gap-3">
-                        {item.icon}
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
+                    {item.section === "home" ? (
+                      <SidebarMenuButton 
+                        onClick={() => setSecaoAtiva(item.section)}
+                        className={`rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 cursor-pointer ${
+                          secaoAtiva === item.section ? 'bg-[#EDF2FB] border-l-4 border-[#ED4231]' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {item.icon}
+                          <span>{item.label}</span>
+                        </div>
+                      </SidebarMenuButton>
+                    ) : (
+                      <SidebarMenuButton asChild className={`rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 ${location.pathname === item.path ? 'bg-[#EDF2FB] border-l-4 border-[#ED4231]' : ''}`}>
+                        <Link to={item.path} className="flex items-center gap-3">
+                          {item.icon}
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    )}
                   </TooltipTrigger>
                   <TooltipContent className="z-50">
                     {item.label}
                   </TooltipContent>
                 </Tooltip>
-              </SidebarMenuItem>            ))}
-            
-            <SidebarMenuItem>
+              </SidebarMenuItem>
+            ))}            <SidebarMenuItem>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <SidebarMenuButton className="rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 text-[#ED4231] flex items-center gap-3">
-                    <span className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#ED4231" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M18 15l3-3m0 0l-3-3m3 3H9" /></svg>
                       <span>Sair</span>
-                    </span>
+                    </div>
                   </SidebarMenuButton>
                 </TooltipTrigger>
                 <TooltipContent className="z-50">Sair da conta</TooltipContent>
@@ -510,14 +575,15 @@ const AssistenteSocial = () => {
                 {theme === 'dark' ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-gray-800" />}
               </Button>
             </div>
-          </header>
-
-          <div className="max-w-6xl mx-auto p-2 sm:p-4 md:p-8 pt-24 sm:pt-28 md:pt-24">
+          </header>          <div className="max-w-6xl mx-auto p-2 sm:p-4 md:p-8 pt-24 sm:pt-28 md:pt-24">
             <div className="flex flex-col">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-indigo-900 dark:text-gray-100 mb-2">Dashboard - Assistente Social</h1>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">Gerencie seus atendimentos e acompanhe seu trabalho social</p>              {/* Cards de resumo */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 sm:gap-6 mb-8">
-                {/* Formulários pendentes */}
+              {secaoAtiva === "home" && (
+                <>
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-indigo-900 dark:text-gray-100 mb-2">Dashboard - Assistente Social</h1>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6">Gerencie seus atendimentos e acompanhe seu trabalho social</p>
+                  
+                  {/* Cards de resumo */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 sm:gap-6 mb-8">{/* Formulários pendentes */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -529,7 +595,7 @@ const AssistenteSocial = () => {
                         <div>
                           <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">Pendentes</p>
                           <p className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
-                            {formularios.filter(f => f.status === "pendente").length}
+                            {usuariosNaoClassificados}
                           </p>
                         </div>
                         <div className="p-2 sm:p-3 rounded-full bg-orange-100 dark:bg-orange-900/30">
@@ -538,7 +604,7 @@ const AssistenteSocial = () => {
                       </div>
                     </CardContent>
                   </Card>
-                </motion.div>                {/* Total de usuários */}
+                </motion.div>{/* Total de usuários */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -558,80 +624,17 @@ const AssistenteSocial = () => {
                     </CardContent>
                   </Card>
                 </motion.div>
-              </div>              {/* Seção de formulários */}
+              </div>              {/* Seção de classificação de usuários */}
               <div className="grid grid-cols-1 gap-6 mb-8">
-                {/* Formulários Pendentes */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
                 >
-                  <Card className="bg-white dark:bg-[#23272F] border-[#EDF2FB] dark:border-[#444857]">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-[#ED4231]" />
-                        Formulários para Análise
-                      </CardTitle>
-                      <CardDescription>
-                        Inscrições aguardando aprovação
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {formularios.filter(f => f.status === "pendente").length > 0 ? (
-                        <div className="space-y-3 max-h-80 overflow-y-auto">
-                          {formularios.filter(f => f.status === "pendente").map((formulario) => (
-                            <div key={formulario.id} className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-medium text-gray-900 dark:text-gray-100 text-sm">{formulario.nomeCompleto}</h4>
-                                <Badge className={getFormStatusColor(formulario.status)}>
-                                  {getFormStatusText(formulario.status)}
-                                </Badge>
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 mb-3">
-                                <span>{formulario.areaOrientacao}</span>
-                                <span>•</span>
-                                <span>{formatarData(formulario.dataSubmissao)}</span>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => abrirFormularioModal(formulario)}
-                                  className="flex-1 text-xs h-8"
-                                >
-                                  <Eye className="w-3 h-3 mr-1" />
-                                  Ver
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  onClick={() => iniciarAprovacao(formulario)}
-                                  className="bg-green-600 hover:bg-green-700 text-white text-xs h-8"
-                                >
-                                  <ThumbsUp className="w-3 h-3 mr-1" />
-                                  Aprovar
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => iniciarReprovacao(formulario)}
-                                  className="text-xs h-8"
-                                >
-                                  <ThumbsDown className="w-3 h-3 mr-1" />
-                                  Reprovar
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                          <p className="text-gray-500 dark:text-gray-400">Nenhum formulário pendente</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>                </motion.div>
-              </div>
+                  <ClassificacaoUsuarios onUsuarioClassificado={atualizarContadorUsuarios} />
+                </motion.div>
+              </div>                </>
+              )}
             </div>
           </div>
         </main>

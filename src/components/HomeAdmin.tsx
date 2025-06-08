@@ -2,11 +2,12 @@ import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Link, useLocation } from "react-router-dom";
-import { Calendar, User, Clock, Menu, History, Sun, Moon, Home } from "lucide-react";
+import { Calendar, User, Clock, Menu, History, Sun, Moon, Home, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { useProfileImage } from "@/components/useProfileImage";
 import { useThemeToggleWithNotification } from "@/hooks/useThemeToggleWithNotification";
 import { useUserData } from "@/hooks/useUserData";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 const HomeAdmin = () => {
   const location = useLocation();
@@ -63,6 +64,21 @@ const HomeAdmin = () => {
             <SidebarMenuItem>
               <Tooltip>
                 <TooltipTrigger asChild>
+                  <SidebarMenuButton asChild className={`rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 ${location.pathname === '/cadastro-assistente-social' ? 'bg-[#EDF2FB] border-l-4 border-[#ED4231]' : ''}`}>
+                    <Link to="/cadastro-assistente-social" className="flex items-center gap-3">
+                      <UserPlus className="w-6 h-6" color="#ED4231" />
+                      <span>Cadastrar Assistente Social</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </TooltipTrigger>
+                <TooltipContent className="z-50">
+                  Cadastrar novo assistente social
+                </TooltipContent>
+              </Tooltip>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <SidebarMenuButton asChild className={`rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 ${location.pathname === '/agenda' ? 'bg-[#EDF2FB] border-l-4 border-[#ED4231]' : ''}`}>
                     <Link to="/agenda" className="flex items-center gap-3">
                       <Calendar className="w-6 h-6" color="#ED4231" />
@@ -78,6 +94,21 @@ const HomeAdmin = () => {
             <SidebarMenuItem>
               <Tooltip>
                 <TooltipTrigger asChild>
+                  <SidebarMenuButton asChild className={`rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 ${location.pathname === '/agendar-horario' ? 'bg-[#EDF2FB] border-l-4 border-[#ED4231]' : ''}`}>
+                    <Link to="/agendar-horario" className="flex items-center gap-3">
+                      <Clock className="w-6 h-6" color="#ED4231" />
+                      <span>Agendar Consulta</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </TooltipTrigger>
+                <TooltipContent className="z-50">
+                  Agende uma nova consulta com um profissional
+                </TooltipContent>
+              </Tooltip>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <SidebarMenuButton asChild className={`rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 ${location.pathname === '/historico' ? 'bg-[#EDF2FB] border-l-4 border-[#ED4231]' : ''}`}>
                     <Link to="/historico" className="flex items-center gap-3">
                       <History className="w-6 h-6" color="#ED4231" />
@@ -87,21 +118,6 @@ const HomeAdmin = () => {
                 </TooltipTrigger>
                 <TooltipContent className="z-50">
                   Veja seu histórico de consultas
-                </TooltipContent>
-              </Tooltip>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                   <SidebarMenuButton asChild className={`rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 ${location.pathname === '/agendar-horario' ? 'bg-[#EDF2FB] border-l-4 border-[#ED4231]' : ''}`}>
-                    <Link to="/agendar-horario" className="flex items-center gap-3">
-                      <Clock className="w-6 h-6" color="#ED4231" />
-                      <span>Agendar Consulta</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </TooltipTrigger>
-                <TooltipContent className="z-50">
-                  Agende uma nova consulta com um profissional
                 </TooltipContent>
               </Tooltip>
             </SidebarMenuItem>
@@ -171,8 +187,31 @@ const HomeAdmin = () => {
             </div>
           </header>
 
-          {/* ...existing main content... */}
+          {/* Main content */}
+          <div className="container mx-auto py-8 px-4">
+            {/* Your existing dashboard content */}
+          </div>
         </main>
+
+        {/* Logout Confirmation Dialog */}
+        <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirmar Saída</DialogTitle>
+              <DialogDescription>
+                Tem certeza que deseja sair da sua conta?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowLogoutDialog(false)}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={() => {/* Add logout logic */}}>
+                Sair
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </SidebarProvider>
   );

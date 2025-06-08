@@ -15,6 +15,7 @@ import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCep } from "@/hooks/useCep";
 import { useUserData } from "@/hooks/useUserData";
+import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 
 const ProfileFormUser = () => {
   const location = useLocation();
@@ -153,9 +154,8 @@ const ProfileFormUser = () => {
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
-
   // Função para salvar as alterações
-  const handleSave = () => {
+  const handleSave = async () => {
     // If no changes were made, just provide feedback
     if (!formChanged && !selectedImage) {
       toast({
@@ -175,41 +175,50 @@ const ProfileFormUser = () => {
       });
       return;
     }
+      setLoading(true);
     
-    setLoading(true);
-    
-    // Simulating an API call
-    setTimeout(() => {
-      try {
-        // Use the setUserData function from the hook instead of directly setting localStorage
-        setUserData(formData);
-        
-        // If there's a new image, update it
-        if (selectedImage && imagePreview) {
-          setProfileImage(imagePreview);
-        }
-        
-        // Success feedback
-        setSuccessMessage("Perfil atualizado com sucesso!");
-        setFormChanged(false);
-        
-        toast({
-          title: "Perfil atualizado",
-          description: "Suas informações foram atualizadas com sucesso!",
-        });
-        
-        // Hide success message after a few seconds
-        setTimeout(() => setSuccessMessage(""), 3000);
-      } catch (error) {
-        toast({
-          title: "Erro ao salvar",
-          description: "Ocorreu um erro ao salvar suas informações.",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
+    try {
+      // Real API call to update user profile
+      const response = await fetch('http://localhost:8080/perfil/usuario', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao atualizar perfil');
       }
-    }, 1500);
+
+      // Use the setUserData function from the hook instead of directly setting localStorage
+      setUserData(formData);
+      
+      // If there's a new image, update it
+      if (selectedImage && imagePreview) {
+        setProfileImage(imagePreview);
+      }
+      
+      // Success feedback
+      setSuccessMessage("Perfil atualizado com sucesso!");
+      setFormChanged(false);
+      
+      toast({
+        title: "Perfil atualizado",
+        description: "Suas informações foram atualizadas com sucesso!",
+      });
+      
+      // Hide success message after a few seconds
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      toast({
+        title: "Erro ao salvar",
+        description: "Ocorreu um erro ao salvar suas informações.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
   
   // Função para buscar endereço pelo CEP
@@ -261,13 +270,17 @@ const ProfileFormUser = () => {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen w-full flex flex-col md:flex-row bg-[#EDF2FB] dark:bg-gradient-to-br dark:from-[#181A20] dark:via-[#23272F] dark:to-[#181A20] transition-colors duration-300 font-sans text-base">
-        {!sidebarOpen && (
+      <div className="min-h-screen w-full flex flex-col md:flex-row bg-[#EDF2FB] dark:bg-gradient-to-br dark:from-[#181A20] dark:via-[#23272F] dark:to-[#181A20] transition-colors duration-300 font-sans text-base">        {!sidebarOpen && (
           <div className="w-full flex justify-start items-center gap-3 p-4 fixed top-0 left-0 z-30 bg-white/80 dark:bg-[#23272F]/90 shadow-md backdrop-blur-md">
             <Button onClick={() => setSidebarOpen(true)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md" aria-label="Abrir menu lateral" tabIndex={0} title="Abrir menu lateral">
               <Menu className="w-7 h-7" />
             </Button>
-            <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow" />
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={formData.nome || 'User'}
+              size="w-10 h-10"
+              className="border-2 border-[#ED4231]"
+            />
             <span className="font-bold text-indigo-900 dark:text-gray-100">{formData.nome} {formData.sobrenome}</span>
           </div>
         )}
@@ -276,14 +289,18 @@ const ProfileFormUser = () => {
           ${sidebarOpen ? 'opacity-100 translate-x-0 w-4/5 max-w-xs md:w-72' : 'opacity-0 -translate-x-full w-0'}
           bg-gradient-to-b from-white via-[#f8fafc] to-[#EDF2FB] dark:from-[#23272F] dark:via-[#23272F] dark:to-[#181A20] shadow-2xl rounded-2xl p-6 flex flex-col gap-6 overflow-hidden
           fixed md:static z-40 top-0 left-0 h-full md:h-auto border-r border-[#EDF2FB] dark:border-[#23272F] backdrop-blur-[2px] text-sm md:text-base`
-        }>
-          <div className="w-full flex justify-start mb-6">
+        }>          <div className="w-full flex justify-start mb-6">
             <Button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md">
               <Menu className="w-7 h-7" />
             </Button>
           </div>
           <div className="flex flex-col items-center gap-2 mb-8">
-            <img src={profileImage} alt="Foto de perfil" className="w-16 h-16 rounded-full border-4 border-[#EDF2FB] shadow" />
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={formData.nome || 'User'}
+              size="w-16 h-16"
+              className="border-4 border-[#EDF2FB]"
+            />
             <span className="font-extrabold text-xl text-indigo-900 dark:text-gray-100 tracking-wide">{formData.nome} {formData.sobrenome}</span>
           </div>
           
@@ -309,8 +326,18 @@ const ProfileFormUser = () => {
             
             <SidebarMenuItem>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <SidebarMenuButton className="rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 text-[#ED4231] flex items-center gap-3">
+                <TooltipTrigger asChild>                  <SidebarMenuButton 
+                    className="rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 text-[#ED4231] flex items-center gap-3"
+                    onClick={() => {
+                      localStorage.removeItem('userData');
+                      localStorage.removeItem('profileData');
+                      navigate('/');
+                      toast({
+                        title: "Sessão encerrada",
+                        description: "Você foi desconectado com sucesso.",
+                      });
+                    }}
+                  >
                     <span className="flex items-center gap-2">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#ED4231" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M18 15l3-3m0 0l-3-3m3 3H9" /></svg>
                       <span>Sair</span>
@@ -331,10 +358,14 @@ const ProfileFormUser = () => {
           </div>
         </div>
 
-        <main id="main-content" role="main" aria-label="Conteúdo principal" className={`flex-1 w-full md:w-auto mt-20 md:mt-0 transition-all duration-500 ease-in-out px-2 md:px-0 ${sidebarOpen ? '' : 'ml-0'}`}>
-          <header className="w-full flex items-center justify-between px-4 md:px-6 py-4 bg-white/90 dark:bg-[#23272F]/95 shadow-md fixed top-0 left-0 z-20 backdrop-blur-md transition-colors duration-300 border-b border-[#EDF2FB] dark:border-[#23272F]" role="banner" aria-label="Cabeçalho">
+        <main id="main-content" role="main" aria-label="Conteúdo principal" className={`flex-1 w-full md:w-auto mt-20 md:mt-0 transition-all duration-500 ease-in-out px-2 md:px-0 ${sidebarOpen ? '' : 'ml-0'}`}>          <header className="w-full flex items-center justify-between px-4 md:px-6 py-4 bg-white/90 dark:bg-[#23272F]/95 shadow-md fixed top-0 left-0 z-20 backdrop-blur-md transition-colors duration-300 border-b border-[#EDF2FB] dark:border-[#23272F]" role="banner" aria-label="Cabeçalho">
             <div className="flex items-center gap-3">
-              <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow hover:scale-105 transition-transform duration-200" />
+              <ProfileAvatar 
+                profileImage={profileImage}
+                name={formData.nome || 'User'}
+                size="w-10 h-10"
+                className="border-2 border-[#ED4231]"
+              />
               <span className="font-bold text-indigo-900 dark:text-gray-100">{formData.nome} {formData.sobrenome}</span>
             </div>
             <div className="flex items-center gap-3">              <Tooltip>

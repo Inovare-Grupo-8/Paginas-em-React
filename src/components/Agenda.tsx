@@ -99,13 +99,22 @@ const Agenda = () => {
   }, [filteredAppointments, date]);
 
   const nextIdx = getNextAppointmentIndex();
-
   // Optimized refresh function
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Atualizar agenda via API
+      const response = await fetch('/api/agenda/atualizar', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao atualizar agenda');
+      }
+
       toast({ 
         title: t('agenda_updated'), 
         description: t('latest_appointments_loaded'),

@@ -3,6 +3,7 @@ import { Sun, Moon, Menu, User } from "lucide-react";
 import { useProfileImage } from "@/components/useProfileImage";
 import { Link, useLocation } from "react-router-dom";
 import { useThemeToggleWithNotification } from "@/hooks/useThemeToggleWithNotification";
+import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 
 const navLinks = [
   { to: "/agenda", label: "Agenda" },
@@ -43,13 +44,13 @@ const Header = ({ nome = "Usuário", sobrenome = "", onLogout }: { nome?: string
           onClick={() => setMobileMenuOpen((v) => !v)}
         >
           <Menu className="w-6 h-6" />
-        </button>
-        {/* Logo e nome do usuário */}
+        </button>        {/* Logo e nome do usuário */}
         <div className="flex items-center gap-2 md:gap-3">
-          <img
-            src={profileImage || "/image/perfilProfile.svg"}
-            alt="Avatar do usuário"
-            className="w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-[#ED4231] shadow"
+          <ProfileAvatar 
+            profileImage={profileImage}
+            name={`${nome} ${sobrenome}`.trim()}
+            size="w-9 h-9 md:w-10 md:h-10"
+            className="border-2 border-[#ED4231] shadow"
           />
           <span className="font-bold text-indigo-900 dark:text-gray-100 text-sm md:text-base truncate max-w-[120px] md:max-w-none" tabIndex={0}>
             {nome} {sobrenome}

@@ -17,6 +17,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { getUserNavigationPath, userNavigationItems } from "@/utils/userNavigation";
+import { ConsultaApiService, ConsultaOutput } from "@/services/consultaApi";
 import { useUserData } from "@/hooks/useUserData"; // Import the useUserData hook
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -55,75 +56,8 @@ const HistoricoUser = () => {
   const [currentRating, setCurrentRating] = useState(0);
   const [currentComment, setCurrentComment] = useState("");
   const [sortBy, setSortBy] = useState<"date" | "rating" | "type">("date");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [isExporting, setIsExporting] = useState(false);
-  const [historicoConsultas, setHistoricoConsultas] = useState<HistoricoConsulta[]>([
-    {
-      id: "1",
-      date: new Date(2025, 1, 10),
-      time: "09:00",
-      name: "Dr. Ricardo Santos",
-      type: "Psicologia",
-      serviceType: "Atendimento Online",
-      status: "realizada",
-      duration: 50,
-      cost: 150,
-      feedback: { rating: 5, comment: "Excelente atendimento, muito atencioso." },
-      prescription: "Técnicas de respiração e relaxamento",
-      nextAppointment: new Date(2025, 2, 10)
-    },
-    {
-      id: "2",
-      date: new Date(2025, 1, 15),
-      time: "10:30",
-      name: "Dra. Carolina Mendes",
-      type: "Nutrição",
-      serviceType: "Consulta Presencial",
-      status: "realizada",
-      duration: 60,
-      cost: 120,
-      feedback: { rating: 4 },
-      prescription: "Dieta balanceada com foco em proteínas"
-    },
-    { 
-      id: "3",
-      date: new Date(2025, 2, 5), 
-      time: "14:00", 
-      name: "Dr. Marcelo Pereira", 
-      type: "Fisioterapia", 
-      serviceType: "Atendimento Online", 
-      status: "cancelada" 
-    },
-    { 
-      id: "4",
-      date: new Date(2025, 3, 1), 
-      time: "15:30", 
-      name: "Dra. Juliana Costa", 
-      type: "Psicologia", 
-      serviceType: "Consulta Presencial", 
-      status: "remarcada" 
-    },
-    { 
-      id: "5",
-      date: new Date(2025, 3, 20), 
-      time: "19:00", 
-      name: "Dr. Felipe Oliveira", 
-      type: "Psicologia", 
-      serviceType: "Atendimento Online", 
-      status: "realizada",
-      feedback: { rating: 5, comment: "Muito bom, estou me sentindo melhor." } 
-    },
-    { 
-      id: "6",
-      date: new Date(2025, 4, 10), 
-      time: "20:30", 
-      name: "Dra. Isabela Martins", 
-      type: "Nutrição", 
-      serviceType: "Consulta Presencial", 
-      status: "realizada",
-      feedback: { rating: 3, comment: "Atendimento ok, mas esperava mais detalhes no plano alimentar." } 
-    },
-  ]);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");  const [isExporting, setIsExporting] = useState(false);
+  const [historicoConsultas, setHistoricoConsultas] = useState<HistoricoConsulta[]>([]);
 
   const { profileImage } = useProfileImage();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -137,10 +71,44 @@ const HistoricoUser = () => {
   const listRef = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useThemeToggleWithNotification();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
-
   useEffect(() => {
-    setLoading(true);
-    setTimeout(() => setLoading(false), 800);
+    const loadHistorico = async () => {
+      setLoading(true);
+      setError("");
+      
+      try {
+        const historicoData = await ConsultaApiService.getHistoricoConsultas('assistido');
+        
+        // Convert API data to component format
+        const historicoFormatted: HistoricoConsulta[] = historicoData.map(consulta => {
+          const consultaDate = new Date(consulta.horario);
+          return {
+            id: consulta.id.toString(),
+            date: consultaDate,
+            time: consulta.horario.split('T')[1]?.substring(0, 5) || '00:00',
+            name: consulta.nomeVoluntario,
+            type: consulta.especialidadeVoluntario,
+            serviceType: consulta.modalidade,
+            status: consulta.status as "realizada" | "cancelada" | "remarcada",
+            duration: 50, // Default duration, can be enhanced later
+            cost: 0, // Default cost, can be enhanced later  
+            feedback: consulta.avaliacao ? { 
+              rating: consulta.avaliacao, 
+              comment: consulta.feedback 
+            } : undefined
+          };
+        });
+        
+        setHistoricoConsultas(historicoFormatted);
+      } catch (err: any) {
+        console.error('Erro ao carregar histórico:', err);
+        setError(err.message || "Erro ao carregar histórico de consultas");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadHistorico();
   }, []);
 
   const handleAddFeedback = (consulta: HistoricoConsulta, rating: number, comment?: string) => {
@@ -199,38 +167,54 @@ const HistoricoUser = () => {
     setCurrentComment("");
   };
 
-  const exportHistory = async () => {
-    setIsExporting(true);
+  const exportHistory = async () => {    setIsExporting(true);
     
-    // Simular exportação
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const csvContent = [
-      ["Data", "Horário", "Profissional", "Especialidade", "Tipo", "Status", "Avaliação", "Valor"],
-      ...filteredHistorico.map(consulta => [
-        format(consulta.date, "dd/MM/yyyy"),
-        consulta.time,
-        consulta.name,
-        consulta.type,
-        consulta.serviceType,
-        consulta.status,
-        consulta.feedback?.rating || "N/A",
-        consulta.cost ? `R$ ${consulta.cost}` : "N/A"
-      ])
-    ].map(row => row.join(",")).join("\n");
+    try {
+      // Obter dados do histórico via API
+      const response = await fetch('/api/historico/exportar', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `historico-consultas-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    link.click();
+      if (!response.ok) {
+        throw new Error('Erro ao exportar histórico');
+      }
+
+      const csvContent = [
+        ["Data", "Horário", "Profissional", "Especialidade", "Tipo", "Status", "Avaliação", "Valor"],
+        ...filteredHistorico.map(consulta => [
+          format(consulta.date, "dd/MM/yyyy"),
+          consulta.time,
+          consulta.name,
+          consulta.type,
+          consulta.serviceType,
+          consulta.status,
+          consulta.feedback?.rating || "N/A",
+          consulta.cost ? `R$ ${consulta.cost}` : "N/A"
+        ])
+      ].map(row => row.join(",")).join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");      link.href = URL.createObjectURL(blob);
+      link.download = `historico-consultas-${format(new Date(), "yyyy-MM-dd")}.csv`;
+      link.click();
+
+      toast({
+        title: "Histórico exportado!",
+        description: "O arquivo foi baixado com sucesso.",
+        variant: "default"
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao exportar",
+        description: "Ocorreu um erro ao exportar o histórico. Tente novamente.",
+        variant: "destructive"
+      });
+    }
 
     setIsExporting(false);
-    toast({
-      title: "Histórico exportado!",
-      description: "O arquivo foi baixado com sucesso.",
-      variant: "default"
-    });
   };
 
   const filteredHistorico = historicoConsultas

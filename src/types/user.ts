@@ -4,6 +4,7 @@ export interface UserData {
   email: string;
   telefone: string;
   dataNascimento: string;
+  genero: string;
   endereco: {
     rua: string;
     numero: string;
@@ -27,6 +28,7 @@ export const defaultUserData: UserData = {
   email: "",
   telefone: "",
   dataNascimento: "",
+  genero: "",
   endereco: {
     rua: "",
     numero: "",

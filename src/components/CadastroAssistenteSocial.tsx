@@ -3,16 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Menu, Home, UserCheck, UserPlus, User } from "lucide-react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useCep } from "@/hooks/useCep";
-import { AssistenteSocialInput } from '@/hooks/useAssistenteSocial';
+import { AssistenteSocialInput, useAssistenteSocial } from '@/hooks/useAssistenteSocial';
 import { SidebarProvider, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useProfileImage } from "@/components/useProfileImage";
 import { useThemeToggleWithNotification } from "@/hooks/useThemeToggleWithNotification";
 import { useUserData } from "@/hooks/useUserData";
+import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 
 interface NovoAssistenteSocialData {
     nome: string;
@@ -85,6 +86,62 @@ export default function CadastroAssistenteSocial() {
     const { userData } = useUserData();
     const navigate = useNavigate();
     const location = useLocation();
+    const { fetchPerfil } = useAssistenteSocial();
+    
+    const [assistenteSocialData, setAssistenteSocialData] = useState({
+        idUsuario: 0,
+        nome: '',
+        sobrenome: '',
+        crp: '',
+        especialidade: '',
+        telefone: '',
+        email: '',
+        fotoUrl: '',
+        endereco: {
+            rua: '',
+            numero: '',
+            complemento: '',
+            bairro: '',
+            cidade: '',
+            estado: '',
+            cep: ''
+        }
+    });
+    
+    // Load assistente social data
+    useEffect(() => {
+        const carregarPerfil = async () => {
+            try {
+                // Load profile data
+                const dados = await fetchPerfil();
+                
+                // Update state with received data
+                setAssistenteSocialData({
+                    idUsuario: dados.idUsuario || 0,
+                    nome: dados.nome || '',
+                    sobrenome: dados.sobrenome || '',
+                    crp: dados.crp || '',
+                    especialidade: dados.especialidade || '',
+                    telefone: dados.telefone || '',
+                    email: dados.email || '',
+                    fotoUrl: dados.fotoUrl || '',
+                    endereco: dados.endereco || {
+                        rua: '',
+                        numero: '',
+                        complemento: '',
+                        bairro: '',
+                        cidade: '',
+                        estado: '',
+                        cep: ''
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading profile:', error);
+            }
+        };
+        
+        carregarPerfil();
+    }, []);
 
     const [formData, setFormData] = useState<NovoAssistenteSocialData>({
         nome: '',
@@ -289,17 +346,21 @@ export default function CadastroAssistenteSocial() {
                 especialidade: formData.voluntario.especialidade,
                 telefone: `${formData.telefone.ddd}${formData.telefone.numero.replace(/\D/g, '')}`,
                 bio: formData.voluntario.bio
-            };
-
-            const response = await fetch('/api/assistentes-sociais', {
+            };            // Get the token from userData if available
+            const token = userData?.token;
+            
+            const response = await fetch('http://localhost:8080/auth/cadastrar/assistente-social', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    ...(token && { 'Authorization': `Bearer ${token}` })
                 },
                 body: JSON.stringify(dadosParaEnviar)
             });
 
             if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Error response:', errorText);
                 throw new Error('Erro ao cadastrar assistente social');
             }
 
@@ -342,14 +403,21 @@ export default function CadastroAssistenteSocial() {
 
     return (
         <SidebarProvider>
-            <div className="min-h-screen w-full flex flex-col md:flex-row bg-[#EDF2FB] dark:bg-gradient-to-br dark:from-[#181A20] dark:via-[#23272F] dark:to-[#181A20] transition-colors duration-300 font-sans">
-                {/* Mobile Header */}
+            <div className="min-h-screen w-full flex flex-col md:flex-row bg-[#EDF2FB] dark:bg-gradient-to-br dark:from-[#181A20] dark:via-[#23272F] dark:to-[#181A20] transition-colors duration-300 font-sans">                {/* Mobile Header */}
                 {!sidebarOpen && (
                     <div className="w-full flex justify-start items-center gap-3 p-4 fixed top-0 left-0 z-30 bg-white/80 dark:bg-gray-900/90 shadow-md backdrop-blur-md">
                         <Button onClick={() => setSidebarOpen(true)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md">
                             <Menu className="w-7 h-7" />
                         </Button>
-                        <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow" />
+                        <ProfileAvatar 
+                            profileImage={profileImage}
+                            name={`${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}`}
+                            size="w-10 h-10"
+                            className="border-2 border-[#ED4231] shadow"
+                        />
+                        <span className="font-bold text-indigo-900 dark:text-gray-100">
+                            {assistenteSocialData.nome} {assistenteSocialData.sobrenome}
+                        </span>
                     </div>
                 )}
 
@@ -368,13 +436,21 @@ export default function CadastroAssistenteSocial() {
                                 <Button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md">
                                     <Menu className="w-7 h-7" />
                                 </Button>
-                            </div>
-
-                            <div className="flex flex-col items-center gap-2 mb-8">
-                                <img src={profileImage} alt="Foto de perfil" className="w-16 h-16 rounded-full border-4 border-[#EDF2FB] shadow" />
+                            </div>                            <div className="flex flex-col items-center gap-2 mb-8">
+                                <ProfileAvatar 
+                                    profileImage={profileImage}
+                                    name={`${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}`}
+                                    size="w-16 h-16"
+                                    className="border-4 border-[#EDF2FB] shadow"
+                                />
                                 <span className="font-extrabold text-xl text-indigo-900 dark:text-gray-100 tracking-wide">
-                                    Inovare Silva
+                                    {assistenteSocialData.nome} {assistenteSocialData.sobrenome}
                                 </span>
+                                {assistenteSocialData.especialidade && (
+                                    <div className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 px-2 py-1 rounded-full text-xs font-medium">
+                                        {assistenteSocialData.especialidade}
+                                    </div>
+                                )}
                             </div>
 
                             <SidebarMenu className="gap-4 text-sm md:text-base">
@@ -410,6 +486,22 @@ export default function CadastroAssistenteSocial() {
                                     </Tooltip>
                                 </SidebarMenuItem>
 
+<SidebarMenuItem>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <SidebarMenuButton asChild className={`rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 ${location.pathname === '/cadastro-assistente' ? 'bg-[#EDF2FB] border-l-4 border-[#ED4231]' : ''}`}>
+                                                <Link to="/cadastro-assistente" className="flex items-center gap-3">
+                                                    <UserPlus className="w-6 h-6" color="#ED4231" />
+                                                    <span>Cadastrar Assistente</span>
+                                                </Link>
+                                            </SidebarMenuButton>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="right">
+                                            Cadastrar Assistente social
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </SidebarMenuItem>
+
                                 <SidebarMenuItem>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
@@ -429,22 +521,6 @@ export default function CadastroAssistenteSocial() {
                                 <SidebarMenuItem>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                            <SidebarMenuButton asChild className={`rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 ${location.pathname === '/cadastro-assistente' ? 'bg-[#EDF2FB] border-l-4 border-[#ED4231]' : ''}`}>
-                                                <Link to="/cadastro-assistente" className="flex items-center gap-3">
-                                                    <UserPlus className="w-6 h-6" color="#ED4231" />
-                                                    <span>Cadastrar Assistente</span>
-                                                </Link>
-                                            </SidebarMenuButton>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="right">
-                                            Cadastrar Assistente social
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </SidebarMenuItem>
-
-                                <SidebarMenuItem>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
                                             <SidebarMenuButton asChild className={`rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 ${location.pathname === '/profile-form-assistente-social' ? 'bg-[#EDF2FB] border-l-4 border-[#ED4231]' : ''}`}>
                                                 <Link to="/profile-form-assistente-social" className="flex items-center gap-3">
                                                     <User className="w-6 h-6" color="#ED4231" />
@@ -455,6 +531,33 @@ export default function CadastroAssistenteSocial() {
                                         <TooltipContent side="right">
                                             Editar perfil
                                         </TooltipContent>
+                                    </Tooltip>
+                                </SidebarMenuItem>
+
+                                <SidebarMenuItem>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                        <SidebarMenuButton 
+                                            className="rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 text-[#ED4231] flex items-center gap-3"
+                                            onClick={() => {
+                                                // Clear user session data
+                                                localStorage.removeItem('userData');
+                                                localStorage.removeItem('profileData');
+                                                // Redirect to login page
+                                                navigate('/');
+                                                toast({
+                                                    title: "Sessão encerrada",
+                                                    description: "Você foi desconectado com sucesso.",
+                                                });
+                                            }}
+                                        >
+                                            <span className="flex items-center gap-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#ED4231" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M18 15l3-3m0 0l-3-3m3 3H9" /></svg>
+                                            <span>Sair</span>
+                                            </span>
+                                        </SidebarMenuButton>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="z-50">Sair da conta</TooltipContent>
                                     </Tooltip>
                                 </SidebarMenuItem>
                             </SidebarMenu>

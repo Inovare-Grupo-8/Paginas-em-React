@@ -182,9 +182,7 @@ const TelaLogin: React.FC = () => {
         if (erroEmail) {
             setModalErro(erroEmail);
             return;
-        }
-
-        setIsLoading(true);
+        }        setIsLoading(true);
         try {
             const response = await fetch('http://localhost:8080/usuarios/login', {
                 method: 'POST',
@@ -197,14 +195,32 @@ const TelaLogin: React.FC = () => {
                 })
             });
 
-            const data = await response.json();
-            
             if (!response.ok) {
-                throw new Error(data.message || 'Credenciais inválidas');
+                // Se a resposta não for ok, trata como credenciais inválidas
+                throw new Error('Email ou senha incorretos');
             }
 
-            localStorage.setItem('userData', JSON.stringify(data));
-              if (data.fase === 1) {
+            let data;
+            try {
+                data = await response.json();
+            } catch (jsonError) {
+                // Se não conseguir fazer parse do JSON, trata como erro de credenciais
+                throw new Error('Email ou senha incorretos');
+            }            localStorage.setItem('userData', JSON.stringify(data));
+            
+            // Salvar informações específicas do usuário para fácil acesso
+            const userInfo = {
+                id: data.idUsuario,
+                email: data.email || loginEmail,
+                nome: data.nome || '',
+                sobrenome: data.sobrenome || '',
+                tipo: data.tipo,
+                fase: data.fase,
+                fotoUrl: data.fotoUrl || ''
+            };
+            localStorage.setItem('userInfo', JSON.stringify(userInfo));
+            
+            if (data.fase === 1) {
                 navigate(data.idUsuario ? `/completar-cadastro-usuario?id=${data.idUsuario}` : '/completar-cadastro-usuario');
             } else {
                 if (!data.tipo) {

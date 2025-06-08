@@ -18,6 +18,8 @@ import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import VoluntarioApiService, { VoluntarioListagem, VoluntarioStatus } from "@/services/voluntarioApi";
+import { useAssistenteSocial } from "@/hooks/useAssistenteSocial";
+import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 
 // Interface para dados do assistente social
 interface AssistenteSocialData {
@@ -56,20 +58,6 @@ interface Voluntario {
   ativo?: boolean;
 }
 
-// Dados simulados do assistente social
-const assistenteSocialData: AssistenteSocialData = {
-  id: "as001",
-  nome: "Maria",
-  sobrenome: "Santos",
-  crp: "CRP 06/123456",
-  especialidade: "Assistência Social",
-  telefone: "(11) 99999-8888",
-  email: "maria.santos@inovare.com",
-  disponivel: true,
-  proximaDisponibilidade: new Date(2025, 4, 30, 14, 0),
-  atendimentosRealizados: 127,
-  avaliacaoMedia: 4.8
-};
 // Itens de navegação para o assistente social
 const assistenteSocialNavItems = [
   {
@@ -106,6 +94,9 @@ const CadastroVoluntario = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { profileImage } = useProfileImage();
   const { theme, toggleTheme } = useThemeToggleWithNotification();
+  
+  // Estado para dados do assistente social (substituindo dados mockados)
+  const [assistenteSocialData, setAssistenteSocialData] = useState<AssistenteSocialData | null>(null);
   
   // Estados para formulário de cadastro
   const [currentStep, setCurrentStep] = useState(1);
@@ -171,16 +162,40 @@ const CadastroVoluntario = () => {
       setLoadingVoluntarios(false);
     }
   };
+  const { fetchPerfil } = useAssistenteSocial();
 
   useEffect(() => {
     // Carregar dados iniciais
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([
-        new Promise(resolve => setTimeout(resolve, 1000)), // Simular delay
-        carregarVoluntarios()
-      ]);
-      setLoading(false);
+      try {
+        // Carregar dados do assistente social e voluntários em paralelo
+        const [perfilData] = await Promise.all([
+          fetchPerfil(),
+          carregarVoluntarios()
+        ]);
+        
+        // Mapear dados do perfil para o formato local
+        if (perfilData) {
+          setAssistenteSocialData({
+            id: perfilData.idUsuario.toString(),
+            nome: perfilData.nome,
+            sobrenome: perfilData.sobrenome,
+            crp: perfilData.crp || 'CRP não informado',
+            especialidade: perfilData.especialidade || 'Assistência Social',
+            telefone: perfilData.telefone || 'Não informado',
+            email: perfilData.email,
+            disponivel: true,
+            proximaDisponibilidade: new Date(Date.now() + 24 * 60 * 60 * 1000), // Próximo dia útil
+            atendimentosRealizados: 0, // Será obtido de outra API posteriormente
+            avaliacaoMedia: 0 // Será obtido de outra API posteriormente
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     
     loadData();
@@ -566,9 +581,15 @@ const CadastroVoluntario = () => {
           <div className="w-full flex justify-start items-center gap-3 p-4 fixed top-0 left-0 z-30 bg-white/80 dark:bg-gray-900/90 shadow-md backdrop-blur-md">
             <Button onClick={() => setSidebarOpen(true)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md">
               <Menu className="w-7 h-7" />
-            </Button>
-            <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow" />
-            <span className="font-bold text-indigo-900 dark:text-gray-100">{assistenteSocialData.nome} {assistenteSocialData.sobrenome}</span>
+            </Button>            <ProfileAvatar 
+              profileImage={profileImage}
+              name={assistenteSocialData ? `${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}` : 'Assistente Social'}
+              size="w-10 h-10"
+              className="border-2 border-[#ED4231] shadow"
+            />
+            <span className="font-bold text-indigo-900 dark:text-gray-100">
+              {assistenteSocialData ? `${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}` : 'Carregando...'}
+            </span>
           </div>
         )}
         
@@ -583,14 +604,18 @@ const CadastroVoluntario = () => {
               <Menu className="w-7 h-7" />
             </Button>
           </div>
-          
-          <div className="flex flex-col items-center gap-2 mb-8">
-            <img src={profileImage} alt="Foto de perfil" className="w-16 h-16 rounded-full border-4 border-[#EDF2FB] shadow" />
+            <div className="flex flex-col items-center gap-2 mb-8">
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={assistenteSocialData ? `${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}` : 'Assistente Social'}
+              size="w-16 h-16"
+              className="border-4 border-[#EDF2FB] shadow"
+            />
             <span className="font-extrabold text-xl text-indigo-900 dark:text-gray-100 tracking-wide">
-              {assistenteSocialData.nome} {assistenteSocialData.sobrenome}
+              {assistenteSocialData ? `${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}` : 'Carregando...'}
             </span>
             <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
-              {assistenteSocialData.especialidade}
+              {assistenteSocialData?.especialidade || 'Assistência Social'}
             </Badge>
           </div>
           
@@ -640,9 +665,15 @@ const CadastroVoluntario = () => {
         <main className={`flex-1 w-full md:w-auto mt-20 md:mt-0 transition-all duration-500 ease-in-out px-2 md:px-0 ${sidebarOpen ? '' : 'ml-0'}`}>
           {/* Header */}
           <header className="w-full flex items-center justify-between px-4 md:px-6 py-4 bg-white/90 dark:bg-gray-900/95 shadow-md fixed top-0 left-0 z-20 backdrop-blur-md">
-            <div className="flex items-center gap-3">
-              <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow hover:scale-105 transition-transform duration-200" />
-              <span className="font-bold text-indigo-900 dark:text-gray-100">{assistenteSocialData.nome} {assistenteSocialData.sobrenome}</span>
+            <div className="flex items-center gap-3">              <ProfileAvatar 
+                profileImage={profileImage}
+                name={assistenteSocialData ? `${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}` : 'Assistente Social'}
+                size="w-10 h-10"
+                className="border-2 border-[#ED4231] shadow hover:scale-105 transition-transform duration-200"
+              />
+              <span className="font-bold text-indigo-900 dark:text-gray-100">
+                {assistenteSocialData ? `${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}` : 'Carregando...'}
+              </span>
             </div>
             
             <div className="flex items-center gap-3">

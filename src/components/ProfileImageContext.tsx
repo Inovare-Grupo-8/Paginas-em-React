@@ -12,9 +12,9 @@ export const ProfileImageProvider = ({ children }: { children: ReactNode }) => {
     const savedData = localStorage.getItem("profileData");
     if (savedData) {
       const parsed = JSON.parse(savedData);
-      return parsed.profileImage || "/image/perfilProfile.svg";
+      return parsed.profileImage || "";
     }
-    return "/image/perfilProfile.svg";
+    return "";
   });
 
   return (

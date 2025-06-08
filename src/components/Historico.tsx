@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useState, useEffect, useRef } from "react";
 import { useProfileImage } from "@/components/useProfileImage";
+import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 import ErrorMessage from "./ErrorMessage";
 import { STATUS_COLORS } from "../constants/ui";
 import { useThemeToggleWithNotification } from "@/hooks/useThemeToggleWithNotification";
@@ -120,17 +121,27 @@ const Historico = () => {
       feedback: { rating: 5, comment: "Profissional muito competente e empático." } 
     }
   ]);
-
   const [formData, setFormData] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [profileImage, setProfileImage] = useState("/image/perfilProfile.svg");  const [loading, setLoading] = useState(true);
+  const { profileImage } = useProfileImage();
+  const [loading, setLoading] = useState(true);
   const [observationInput, setObservationInput] = useState<{[key: string]: string}>({});
   const [error, setError] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useThemeToggleWithNotification();
-  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
-  const location = useLocation();
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);  const location = useLocation();
   const { professionalData } = useProfessional();
+  const navigate = useNavigate();
+  
+  const handleLogout = () => {
+    localStorage.removeItem('userData');
+    localStorage.removeItem('profileData');
+    navigate('/');
+    toast({
+      title: "Sessão encerrada",
+      description: "Você foi desconectado com sucesso.",
+    });
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -191,13 +202,17 @@ const Historico = () => {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen w-full flex flex-col md:flex-row bg-background">
-        {!sidebarOpen && (
+      <div className="min-h-screen w-full flex flex-col md:flex-row bg-background">        {!sidebarOpen && (
           <div className="w-full flex justify-start items-center gap-3 p-4 fixed top-0 left-0 z-30 bg-white/80 dark:bg-gray-900/90 shadow-md backdrop-blur-md">
             <Button onClick={() => setSidebarOpen(true)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md" aria-label="Abrir menu lateral" tabIndex={0} title="Abrir menu lateral">
               <Menu className="w-7 h-7" />
             </Button>
-            <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow" />
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={professionalData ? `${professionalData.nome} ${professionalData.sobrenome}` : 'Profissional'}
+              size="w-10 h-10"
+              className="border-2 border-[#ED4231] shadow"
+            />
             <span className="font-bold text-foreground">Dr. {professionalData.nome} {professionalData.sobrenome}</span>
           </div>
         )}
@@ -211,9 +226,13 @@ const Historico = () => {
             <Button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md">
               <Menu className="w-7 h-7" />
             </Button>
-          </div>
-          <div className="flex flex-col items-center gap-2 mb-8">
-            <img src={profileImage} alt="Foto de perfil" className="w-16 h-16 rounded-full border-4 border-[#EDF2FB] shadow" />
+          </div>          <div className="flex flex-col items-center gap-2 mb-8">
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={professionalData ? `${professionalData.nome} ${professionalData.sobrenome}` : 'Profissional'}
+              size="w-16 h-16"
+              className="border-4 border-[#EDF2FB] shadow"
+            />
             <span className="font-extrabold text-xl text-indigo-900 dark:text-gray-100 tracking-wide">Dr. {professionalData.nome} {professionalData.sobrenome}</span>
             <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
               {professionalData.especialidade}
@@ -305,10 +324,14 @@ const Historico = () => {
           </div>
         </div>
 
-        <main id="main-content" role="main" aria-label="Conteúdo principal" className={`flex-1 w-full md:w-auto mt-20 md:mt-0 transition-all duration-500 ease-in-out px-2 md:px-0 ${sidebarOpen ? '' : 'ml-0'}`}>
-          <header className="w-full flex items-center justify-between px-4 md:px-6 py-4 bg-white/90 dark:bg-gray-900/95 shadow-md fixed top-0 left-0 z-20 backdrop-blur-md">
+        <main id="main-content" role="main" aria-label="Conteúdo principal" className={`flex-1 w-full md:w-auto mt-20 md:mt-0 transition-all duration-500 ease-in-out px-2 md:px-0 ${sidebarOpen ? '' : 'ml-0'}`}>          <header className="w-full flex items-center justify-between px-4 md:px-6 py-4 bg-white/90 dark:bg-gray-900/95 shadow-md fixed top-0 left-0 z-20 backdrop-blur-md">
             <div className="flex items-center gap-3">
-              <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-primary shadow hover:scale-105 transition-transform duration-200" />
+              <ProfileAvatar 
+                profileImage={profileImage}
+                name={professionalData ? `${professionalData.nome} ${professionalData.sobrenome}` : 'Profissional'}
+                size="w-10 h-10"
+                className="border-2 border-primary shadow hover:scale-105 transition-transform duration-200"
+              />
               <span className="font-bold text-foreground">Dr. {professionalData.nome} {professionalData.sobrenome}</span>
             </div>
             <div className="flex items-center gap-3">              <Button
@@ -715,6 +738,21 @@ const Historico = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowFeedbackModal(false)}>
               Fechar
+            </Button>          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Logout Dialog */}
+      <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Deseja realmente sair?</DialogTitle>
+            <DialogDescription>Você será desconectado da sua conta.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowLogoutDialog(false)}>Cancelar</Button>
+            <Button variant="default" onClick={handleLogout} className="bg-[#ED4231] hover:bg-[#D63A2A] text-white font-medium">
+              Sair
             </Button>
           </DialogFooter>
         </DialogContent>

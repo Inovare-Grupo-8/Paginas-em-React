@@ -17,6 +17,8 @@ import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ClassificacaoUsuarios } from "@/components/ClassificacaoUsuarios";
+import { useAssistenteSocial } from "@/hooks/useAssistenteSocial";
+import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 
 // Interface para dados do assistente social
 interface AssistenteSocialData {
@@ -66,105 +68,8 @@ interface FormularioInscricao {
   tipoCandidato?: "multidisciplinar" | "valor_social";
 }
 
-// Dados mockados do assistente social
-const assistenteSocialData: AssistenteSocialData = {
-  id: "as001",
-  nome: "Maria",
-  sobrenome: "Silva Santos",
-  crp: "CRP 12/34567",
-  especialidade: "Assistência Social Clínica",
-  telefone: "(11) 99999-8888",
-  email: "maria.santos@clinic.com",
-  disponivel: true,
-  proximaDisponibilidade: new Date(2025, 4, 31, 14, 0),
-  atendimentosRealizados: 342,
-  avaliacaoMedia: 4.8
-};
-
-// Dados mockados de usuários do sistema
-// const totalUsuarios = 127; // Removido - agora será dinâmico
-
-// Dados mockados de atendimentos
-const atendimentosData: AtendimentoSocial[] = [
-  {
-    id: "at001",
-    paciente: "Ana Costa",
-    data: new Date(2025, 4, 31, 9, 0),
-    horario: "09:00",
-    tipo: "Individual",
-    status: "agendado",
-    observacoes: "Primeira consulta"
-  },
-  {
-    id: "at002", 
-    paciente: "Família Oliveira",
-    data: new Date(2025, 4, 31, 14, 0),
-    horario: "14:00",
-    tipo: "Familiar",
-    status: "agendado"
-  },
-  {
-    id: "at003",
-    paciente: "João Santos",
-    data: new Date(2025, 4, 30, 10, 30),
-    horario: "10:30",
-    tipo: "Individual",
-    status: "concluido"
-  }
-];
-
-// Dados mockados de formulários de inscrição pendentes
-const formulariosPendentes: FormularioInscricao[] = [
-  {
-    id: "form001",
-    nomeCompleto: "Maria Silva dos Santos",
-    telefone: "(11) 98765-4321",
-    dataNascimento: "1985-05-15",
-    email: "maria.santos@email.com",
-    cep: "01234-567",
-    logradouro: "Rua das Flores",
-    numero: "123",
-    complemento: "Apto 45",
-    bairro: "Centro",
-    cidade: "São Paulo",
-    estado: "SP",    areaOrientacao: "Orientação Familiar",
-    comoSoube: "Indicação de amigo",
-    dataSubmissao: new Date(2025, 4, 29),
-    status: "pendente"
-  },
-  {
-    id: "form002",
-    nomeCompleto: "Carlos Eduardo Pereira",
-    telefone: "(11) 91234-5678",
-    dataNascimento: "1978-12-03",
-    email: "carlos.pereira@email.com",
-    cep: "04567-890",
-    logradouro: "Avenida Principal",
-    numero: "567",
-    bairro: "Vila Nova",
-    cidade: "São Paulo",
-    estado: "SP",    areaOrientacao: "Orientação Profissional",
-    comoSoube: "Site da instituição",
-    dataSubmissao: new Date(2025, 4, 28),
-    status: "pendente"
-  },
-  {
-    id: "form003",
-    nomeCompleto: "Ana Paula Oliveira",
-    telefone: "(11) 95555-4444",
-    dataNascimento: "1990-08-22",
-    email: "ana.oliveira@email.com",
-    cep: "02468-135",
-    logradouro: "Rua do Comércio",
-    numero: "89",
-    bairro: "Jardim das Rosas",
-    cidade: "São Paulo",
-    estado: "SP",    areaOrientacao: "Orientação Psicossocial",
-    comoSoube: "Redes sociais",
-    dataSubmissao: new Date(2025, 4, 27),
-    status: "pendente"
-  }
-];
+// Dados de formulários de inscrição pendentes (carregados via API)
+const formulariosPendentesDefault: FormularioInscricao[] = [];
 
 // Itens de navegação para o assistente social
 const assistenteSocialNavItems = [
@@ -200,29 +105,56 @@ const assistenteSocialNavItems = [
 ];
 
 const AssistenteSocial = () => {
-  const location = useLocation();  const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  const { fetchPerfil } = useAssistenteSocial();
+  
+  // Estados para dados da API
+  const [assistenteSocialData, setAssistenteSocialData] = useState<AssistenteSocialData | null>(null);
+  const [atendimentosData, setAtendimentosData] = useState<AtendimentoSocial[]>([]);
+  const [formulariosPendentes, setFormulariosPendentes] = useState<FormularioInscricao[]>(formulariosPendentesDefault);
+  
+  const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [secaoAtiva, setSecaoAtiva] = useState("home"); // Novo estado para controlar seção ativa
   const { profileImage } = useProfileImage();
-  const { theme, toggleTheme } = useThemeToggleWithNotification();// Estados para controle da interface
+  const { theme, toggleTheme } = useThemeToggleWithNotification();
+
+  // Estados para controle da interface
   const [atendimentosHoje, setAtendimentosHoje] = useState<AtendimentoSocial[]>([]);
   const [proximosAtendimentos, setProximosAtendimentos] = useState<AtendimentoSocial[]>([]);
   const [totalUsuarios, setTotalUsuarios] = useState<number>(0);
   const [usuariosNaoClassificados, setUsuariosNaoClassificados] = useState<number>(0);
-    // Estados para formulários
+  
+  // Estados para formulários
   const [formularios, setFormularios] = useState<FormularioInscricao[]>(formulariosPendentes);
   const [formularioSelecionado, setFormularioSelecionado] = useState<FormularioInscricao | null>(null);
   const [showFormularioModal, setShowFormularioModal] = useState(false);
   const [showAprovacaoModal, setShowAprovacaoModal] = useState(false);
   const [showReprovacaoModal, setShowReprovacaoModal] = useState(false);
   const [observacoes, setObservacoes] = useState("");
-  const [tipoCandidato, setTipoCandidato] = useState<"multidisciplinar" | "valor_social" | "">("");
-  const [isProcessing, setIsProcessing] = useState(false);  useEffect(() => {
-    // Simular carregamento de dados
+  const [tipoCandidato, setTipoCandidato] = useState<"multidisciplinar" | "valor_social" | "">("");  const [isProcessing, setIsProcessing] = useState(false);
+  useEffect(() => {
+    // Carregar dados reais da API
     const loadData = async () => {
       setLoading(true);
       
       try {
+        // Buscar dados do assistente social
+        const perfilData = await fetchPerfil();
+        setAssistenteSocialData({
+          id: perfilData.idUsuario.toString(),
+          nome: perfilData.nome,
+          sobrenome: perfilData.sobrenome,
+          crp: perfilData.crp,
+          especialidade: perfilData.especialidade,
+          telefone: perfilData.telefone,
+          email: perfilData.email,
+          disponivel: true, // Valor padrão
+          proximaDisponibilidade: new Date(),
+          atendimentosRealizados: 0,
+          avaliacaoMedia: 0
+        });
+
         // Buscar total de usuários da API
         const response = await fetch('http://localhost:8080/usuarios');
         if (response.ok) {
@@ -242,15 +174,12 @@ const AssistenteSocial = () => {
         }
       } catch (error) {
         console.error('Erro ao conectar com a API:', error);
-        // Manter valor padrão em caso de erro
+        // Manter valores padrão em caso de erro
         setTotalUsuarios(0);
         setUsuariosNaoClassificados(0);
       }
       
-      // Simular delay de API para outros dados
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Filtrar atendimentos de hoje
+      // Filtrar atendimentos de hoje (usando dados vazios por enquanto)
       const hoje = new Date();
       const atendimentosDeHoje = atendimentosData.filter(
         atendimento => atendimento.data.toDateString() === hoje.toDateString()
@@ -264,7 +193,7 @@ const AssistenteSocial = () => {
       setAtendimentosHoje(atendimentosDeHoje);
       setProximosAtendimentos(proximosAtend);
       setLoading(false);
-    };    loadData();
+    };loadData();
   }, []);
 
   // Função para atualizar contador após classificação
@@ -343,15 +272,27 @@ const AssistenteSocial = () => {
     setFormularioSelecionado(formulario);
     setObservacoes("");
     setShowReprovacaoModal(true);
-  };
-  const confirmarAprovacao = async () => {
+  };  const confirmarAprovacao = async () => {
     if (!formularioSelecionado || !tipoCandidato) return;
     
     setIsProcessing(true);
     
     try {
-      // Simular API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Real API call to approve form
+      const response = await fetch(`http://localhost:8080/formularios/${formularioSelecionado.id}/aprovar`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          observacoesAssistente: observacoes,
+          tipoCandidato: tipoCandidato
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao aprovar formulário');
+      }
       
       // Atualizar lista de formulários
       setFormularios(prev => 
@@ -384,15 +325,26 @@ const AssistenteSocial = () => {
       setIsProcessing(false);
     }
   };
-
   const confirmarReprovacao = async () => {
     if (!formularioSelecionado) return;
     
     setIsProcessing(true);
     
     try {
-      // Simular API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Real API call to reject form
+      const response = await fetch(`http://localhost:8080/formularios/${formularioSelecionado.id}/reprovar`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          observacoesAssistente: observacoes
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao reprovar formulário');
+      }
       
       // Atualizar lista de formulários
       setFormularios(prev => 
@@ -478,9 +430,15 @@ const AssistenteSocial = () => {
           <div className="w-full flex justify-start items-center gap-3 p-4 fixed top-0 left-0 z-30 bg-white/80 dark:bg-gray-900/90 shadow-md backdrop-blur-md">
             <Button onClick={() => setSidebarOpen(true)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md">
               <Menu className="w-7 h-7" />
-            </Button>
-            <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow" />
-            <span className="font-bold text-indigo-900 dark:text-gray-100">{assistenteSocialData.nome} {assistenteSocialData.sobrenome}</span>
+            </Button>            <ProfileAvatar 
+              profileImage={profileImage}
+              name={assistenteSocialData ? `${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}` : 'Assistente Social'}
+              size="w-10 h-10"
+              className="border-2 border-[#ED4231] shadow"
+            />
+            <span className="font-bold text-indigo-900 dark:text-gray-100">
+              {assistenteSocialData ? `${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}` : 'Carregando...'}
+            </span>
           </div>
         )}
         
@@ -494,16 +452,20 @@ const AssistenteSocial = () => {
             <Button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md">
               <Menu className="w-7 h-7" />
             </Button>
-          </div>
-            <div className="flex flex-col items-center gap-2 mb-8">
-            <img src={profileImage} alt="Foto de perfil" className="w-16 h-16 rounded-full border-4 border-[#EDF2FB] shadow" />
+          </div>            <div className="flex flex-col items-center gap-2 mb-8">
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={assistenteSocialData ? `${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}` : 'Assistente Social'}
+              size="w-16 h-16"
+              className="border-4 border-[#EDF2FB] shadow"
+            />
             <span className="font-extrabold text-xl text-indigo-900 dark:text-gray-100 tracking-wide">
-              {assistenteSocialData.nome} {assistenteSocialData.sobrenome}
+              {assistenteSocialData ? `${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}` : 'Carregando...'}
             </span>
             <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
-              {assistenteSocialData.especialidade}
+              {assistenteSocialData?.especialidade || 'Especialidade'}
             </Badge>
-          </div>          <SidebarMenu className="gap-4 text-sm md:text-base">            {assistenteSocialNavItems.map((item) => (
+          </div><SidebarMenu className="gap-4 text-sm md:text-base">            {assistenteSocialNavItems.map((item) => (
               <SidebarMenuItem key={item.path}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -536,7 +498,20 @@ const AssistenteSocial = () => {
             ))}            <SidebarMenuItem>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <SidebarMenuButton className="rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 text-[#ED4231] flex items-center gap-3">
+                  <SidebarMenuButton 
+                    className="rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 text-[#ED4231] flex items-center gap-3"
+                    onClick={() => {
+                      // Clear user session data
+                      localStorage.removeItem('userData');
+                      localStorage.removeItem('profileData');
+                      // Redirect to login page
+                      navigate('/');
+                      toast({
+                        title: "Sessão encerrada",
+                        description: "Você foi desconectado com sucesso.",
+                      });
+                    }}
+                  >
                     <div className="flex items-center gap-2">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#ED4231" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M18 15l3-3m0 0l-3-3m3 3H9" /></svg>
                       <span>Sair</span>
@@ -561,9 +536,15 @@ const AssistenteSocial = () => {
         <main className={`flex-1 w-full md:w-auto mt-20 md:mt-0 transition-all duration-500 ease-in-out px-2 md:px-0 ${sidebarOpen ? '' : 'ml-0'}`}>
           {/* Header */}
           <header className="w-full flex items-center justify-between px-4 md:px-6 py-4 bg-white/90 dark:bg-gray-900/95 shadow-md fixed top-0 left-0 z-20 backdrop-blur-md">
-            <div className="flex items-center gap-3">
-              <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow hover:scale-105 transition-transform duration-200" />
-              <span className="font-bold text-indigo-900 dark:text-gray-100">{assistenteSocialData.nome} {assistenteSocialData.sobrenome}</span>
+            <div className="flex items-center gap-3">              <ProfileAvatar 
+                profileImage={profileImage}
+                name={assistenteSocialData ? `${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}` : 'Assistente Social'}
+                size="w-10 h-10"
+                className="border-2 border-[#ED4231] shadow hover:scale-105 transition-transform duration-200"
+              />
+              <span className="font-bold text-indigo-900 dark:text-gray-100">
+                {assistenteSocialData ? `${assistenteSocialData.nome} ${assistenteSocialData.sobrenome}` : 'Carregando...'}
+              </span>
             </div>
             
             <div className="flex items-center gap-3">

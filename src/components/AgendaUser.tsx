@@ -3,7 +3,15 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SidebarProvider, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
@@ -56,6 +64,9 @@ const AgendaUser = () => {
   const { theme, toggleTheme } = useThemeToggleWithNotification();
   const [isLoading, setIsLoading] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+
+  // Let's add the navigate hook for page navigation
+  const navigate = useNavigate();
 
   useEffect(() => {
     setLoading(true);
@@ -115,6 +126,18 @@ const AgendaUser = () => {
     { period: "Tarde", Icon: CloudMoon, timeRange: "12h-18h" },
     { period: "Noite", Icon: Moon, timeRange: "19h-21h" },
   ];
+
+  // Handle logout function
+  const handleLogout = () => {
+    localStorage.removeItem('userData');
+    localStorage.removeItem('profileData');
+    navigate('/');
+    toast({
+      title: "Sessão encerrada",
+      description: "Você foi desconectado com sucesso.",
+    });
+    setShowLogoutDialog(false);
+  };
 
   return (
     <SidebarProvider>
@@ -406,6 +429,22 @@ const AgendaUser = () => {
           100% { transform: scale(1); }
         }
       `}</style>
+
+      {/* Logout dialog */}
+      <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Deseja realmente sair?</DialogTitle>
+            <DialogDescription>Você será desconectado da sua conta.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowLogoutDialog(false)}>Cancelar</Button>
+            <Button variant="default" onClick={handleLogout} className="bg-[#ED4231] hover:bg-[#D63A2A] text-white font-medium">
+              Sair
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   );
 };

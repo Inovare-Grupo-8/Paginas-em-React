@@ -25,6 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 
 // Componente de breadcrumb simples para o profissional
 const getProfessionalNavigationPath = (currentPath: string) => {
@@ -198,9 +199,8 @@ const ProfileForm = () => {
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
-
   // Update to use setProfessionalData from the context
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formChanged && !selectedImage) {
       toast({
         title: "Nenhuma alteração detectada",
@@ -209,8 +209,7 @@ const ProfileForm = () => {
       });
       return;
     }
-    
-    if (!validateForm()) {
+      if (!validateForm()) {
       toast({
         title: "Formulário com erros",
         description: "Corrija os erros antes de salvar",
@@ -221,34 +220,45 @@ const ProfileForm = () => {
     
     setLoading(true);
     
-    setTimeout(() => {
-      try {
-        // Use the setProfessionalData function from the context
-        setProfessionalData(formData);
-        
-        if (selectedImage && imagePreview) {
-          setProfileImage(imagePreview);
-        }
-        
-        setSuccessMessage("Perfil atualizado com sucesso!");
-        setFormChanged(false);
-        
-        toast({
-          title: "Perfil atualizado",
-          description: "Suas informações foram atualizadas com sucesso!",
-        });
-        
-        setTimeout(() => setSuccessMessage(""), 3000);
-      } catch (error) {
-        toast({
-          title: "Erro ao salvar",
-          description: "Ocorreu um erro ao salvar suas informações.",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
+    try {
+      // Real API call to update professional data
+      const response = await fetch('http://localhost:8080/perfil/profissional', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao atualizar perfil');
       }
-    }, 1500);
+
+      // Use the setProfessionalData function from the context
+      setProfessionalData(formData);
+      
+      if (selectedImage && imagePreview) {
+        setProfileImage(imagePreview);
+      }
+      
+      setSuccessMessage("Perfil atualizado com sucesso!");
+      setFormChanged(false);
+      
+      toast({
+        title: "Perfil atualizado",
+        description: "Suas informações foram atualizadas com sucesso!",
+      });
+      
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      toast({
+        title: "Erro ao salvar",
+        description: "Ocorreu um erro ao salvar suas informações.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
   
   // Função para exportar dados em PDF
@@ -385,7 +395,12 @@ const ProfileForm = () => {
             <Button onClick={() => setSidebarOpen(true)} className="p-2 rounded-full bg-primary text-white focus:outline-none shadow-md" aria-label="Abrir menu lateral" tabIndex={0} title="Abrir menu lateral">
               <Menu className="w-7 h-7" />
             </Button>
-            <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-primary shadow" />
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={`${formData.nome} ${formData.sobrenome}`}
+              size="w-10 h-10"
+              className="border-2 border-primary shadow"
+            />
             {/* Use formData to show the current edited values */}
             <span className="font-bold text-foreground">{formData.nome} {formData.sobrenome}</span>
           </div>
@@ -400,9 +415,13 @@ const ProfileForm = () => {
             <Button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md">
               <Menu className="w-7 h-7" />
             </Button>
-          </div>
-          <div className="flex flex-col items-center gap-2 mb-8">
-            <img src={profileImage} alt="Foto de perfil" className="w-16 h-16 rounded-full border-4 border-[#EDF2FB] shadow" />
+          </div>          <div className="flex flex-col items-center gap-2 mb-8">
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={formData.nome || 'User'}
+              size="w-16 h-16"
+              className="border-4 border-[#EDF2FB]"
+            />
             <span className="font-extrabold text-xl text-indigo-900 dark:text-gray-100 tracking-wide">{formData.nome} {formData.sobrenome}</span>
             <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
               {formData.especialidade}
@@ -453,10 +472,14 @@ const ProfileForm = () => {
           </div>
         </div>
 
-        <main id="main-content" role="main" aria-label="Conteúdo principal" className={`flex-1 w-full md:w-auto mt-20 md:mt-0 transition-all duration-500 ease-in-out px-2 md:px-0 ${sidebarOpen ? '' : 'ml-0'}`}>
-          <header className="w-full flex items-center justify-between px-4 md:px-6 py-4 bg-white/90 dark:bg-gray-900/95 shadow-md fixed top-0 left-0 z-20 backdrop-blur-md">
+        <main id="main-content" role="main" aria-label="Conteúdo principal" className={`flex-1 w-full md:w-auto mt-20 md:mt-0 transition-all duration-500 ease-in-out px-2 md:px-0 ${sidebarOpen ? '' : 'ml-0'}`}>          <header className="w-full flex items-center justify-between px-4 md:px-6 py-4 bg-white/90 dark:bg-gray-900/95 shadow-md fixed top-0 left-0 z-20 backdrop-blur-md">
             <div className="flex items-center gap-3">
-              <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-primary shadow hover:scale-105 transition-transform duration-200" />
+              <ProfileAvatar 
+                profileImage={profileImage}
+                name={formData.nome || 'User'}
+                size="w-10 h-10"
+                className="border-2 border-primary"
+              />
               {/* Use formData to show the current edited values */}
               <span className="font-bold text-foreground">{formData.nome} {formData.sobrenome}</span>
             </div>

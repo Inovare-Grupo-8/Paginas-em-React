@@ -19,15 +19,15 @@ interface UsuarioCompleto {
   tipo: string;
   dataCadastro: string;
 
-  // Dados da Ficha
-  nome: string;
-  sobrenome: string;
-  cpf: string;
-  dataNascimento: string; // Data em formato ISO
-  renda: number;
-  genero: string;
-  areaInteresse: string;
-  profissao: string;
+  // Dados da Ficha (podem ser null se não completaram segunda fase)
+  nome?: string;
+  sobrenome?: string;
+  cpf?: string | null;
+  dataNascimento?: string | null; // Data em formato ISO
+  renda?: number | null;
+  genero?: string | null;
+  areaInteresse?: string | null;
+  profissao?: string | null;
 
   // Dados do Endereço
   logradouro?: string;
@@ -117,23 +117,23 @@ export function ClassificacaoUsuarios({ onUsuarioClassificado }: ClassificacaoUs
     setUsuarioSelecionado(usuario);
     setDialogAberto(true);
   };
-
-  const formatarData = (dataISO: string) => {
+  const formatarData = (dataISO: string | null | undefined) => {
+    if (!dataISO) return 'Não informado';
     try {
       return format(new Date(dataISO), 'dd/MM/yyyy', { locale: ptBR });
     } catch {
       return 'Data inválida';
     }
   };
-
-  const formatarRenda = (renda: number) => {
+  const formatarRenda = (renda: number | null | undefined) => {
+    if (!renda) return 'Não informado';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
     }).format(renda);
   };
-
-  const formatarCPF = (cpf: string) => {
+  const formatarCPF = (cpf: string | null | undefined) => {
+    if (!cpf) return 'Não informado';
     return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
   };
 
@@ -182,24 +182,27 @@ export function ClassificacaoUsuarios({ onUsuarioClassificado }: ClassificacaoUs
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
                       <User className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <div>
+                    </div>                    <div>
                       <h3 className="font-semibold text-lg">
-                        {usuario.nome} {usuario.sobrenome}
+                        {usuario.nome || 'Nome não informado'} {usuario.sobrenome || ''}
                       </h3>
                       <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
                         <span className="flex items-center">
                           <Mail className="h-4 w-4 mr-1" />
                           {usuario.email}
                         </span>
-                        <span className="flex items-center">
-                          <Calendar className="h-4 w-4 mr-1" />
-                          {formatarData(usuario.dataNascimento)}
-                        </span>
-                        <span className="flex items-center">
-                          <DollarSign className="h-4 w-4 mr-1" />
-                          {formatarRenda(usuario.renda)}
-                        </span>
+                        {usuario.dataNascimento && (
+                          <span className="flex items-center">
+                            <Calendar className="h-4 w-4 mr-1" />
+                            {formatarData(usuario.dataNascimento)}
+                          </span>
+                        )}
+                        {usuario.renda && (
+                          <span className="flex items-center">
+                            <DollarSign className="h-4 w-4 mr-1" />
+                            {formatarRenda(usuario.renda)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -251,15 +254,14 @@ export function ClassificacaoUsuarios({ onUsuarioClassificado }: ClassificacaoUs
           </DialogHeader>
 
           {usuarioSelecionado && (
-            <div className="space-y-6">
-              {/* Informações Pessoais */}
+            <div className="space-y-6">              {/* Informações Pessoais */}
               <div>
                 <h3 className="font-semibold text-lg mb-3">Informações Pessoais</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Nome Completo</label>
                     <p className="font-medium">
-                      {usuarioSelecionado.nome} {usuarioSelecionado.sobrenome}
+                      {usuarioSelecionado.nome || 'Não informado'} {usuarioSelecionado.sobrenome || ''}
                     </p>
                   </div>
                   <div>
@@ -274,34 +276,61 @@ export function ClassificacaoUsuarios({ onUsuarioClassificado }: ClassificacaoUs
                     <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Data de Nascimento</label>
                     <p className="font-medium">{formatarData(usuarioSelecionado.dataNascimento)}</p>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Gênero</label>
-                    <p className="font-medium">{usuarioSelecionado.genero}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Profissão</label>
-                    <p className="font-medium">{usuarioSelecionado.profissao}</p>
-                  </div>
+                  {usuarioSelecionado.genero && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Gênero</label>
+                      <p className="font-medium">{usuarioSelecionado.genero}</p>
+                    </div>
+                  )}
+                  {usuarioSelecionado.profissao && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Profissão</label>
+                      <p className="font-medium">{usuarioSelecionado.profissao}</p>
+                    </div>
+                  )}
                 </div>
-              </div>
-
-              {/* Informações Financeiras */}
-              <div>
-                <h3 className="font-semibold text-lg mb-3">Informações Financeiras</h3>
+              </div>              {/* Informações Financeiras */}
+              {usuarioSelecionado.renda && (
                 <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Renda Mensal</label>
-                  <p className="font-medium text-lg">{formatarRenda(usuarioSelecionado.renda)}</p>
+                  <h3 className="font-semibold text-lg mb-3">Informações Financeiras</h3>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Renda Mensal</label>
+                    <p className="font-medium text-lg">{formatarRenda(usuarioSelecionado.renda)}</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Área de Orientação */}
-              <div>
-                <h3 className="font-semibold text-lg mb-3">Área de Interesse</h3>
+              {usuarioSelecionado.areaInteresse && (
                 <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Área de Orientação Desejada</label>
-                  <p className="font-medium">{usuarioSelecionado.areaInteresse}</p>
+                  <h3 className="font-semibold text-lg mb-3">Área de Interesse</h3>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Área de Orientação Desejada</label>
+                    <p className="font-medium">{usuarioSelecionado.areaInteresse}</p>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Alerta para cadastro incompleto */}
+              {(!usuarioSelecionado.nome || !usuarioSelecionado.cpf || !usuarioSelecionado.dataNascimento || !usuarioSelecionado.renda) && (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                        Cadastro Incompleto
+                      </h3>
+                      <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                        <p>Este usuário não completou a segunda fase do cadastro. Algumas informações podem estar em falta. Se desejar entrar em contato com esse usuario, você assistente social pode ajudar a completar o cadastro antes da classificação.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Endereço */}
               {usuarioSelecionado.logradouro && (

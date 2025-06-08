@@ -20,6 +20,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 
 // Dados simulados para consultas - substitua por fonte de dados real posteriormente
 const mockConsultations = [
@@ -143,7 +144,12 @@ const HomeUser = () => {
             <Button onClick={() => setSidebarOpen(true)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md" aria-label="Abrir menu lateral" tabIndex={0} title="Abrir menu lateral">
               <Menu className="w-7 h-7" />
             </Button>
-            <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow" />
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={userData?.nome || 'User'}
+              size="w-10 h-10"
+              className="border-2 border-[#ED4231] shadow"
+            />
             {/* Use the userData from the hook */}
             <span className="font-bold text-indigo-900 dark:text-gray-100">{userData.nome} {userData.sobrenome}</span>
           </div>
@@ -160,7 +166,12 @@ const HomeUser = () => {
             </Button>
           </div>
           <div className="flex flex-col items-center gap-2 mb-8">
-            <img src={profileImage} alt="Foto de perfil" className="w-16 h-16 rounded-full border-4 border-[#EDF2FB] shadow" />
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={userData?.nome || 'User'}
+              size="w-16 h-16"
+              className="border-4 border-[#EDF2FB] shadow"
+            />
 
             <span className="font-extrabold text-xl text-indigo-900 dark:text-gray-100 tracking-wide">{userData.nome} {userData.sobrenome}</span>
           </div>
@@ -171,7 +182,12 @@ const HomeUser = () => {
         <main id="main-content" role="main" aria-label="Conteúdo principal" className={`flex-1 w-full md:w-auto mt-20 md:mt-0 transition-all duration-500 ease-in-out px-2 md:px-0 ${sidebarOpen ? '' : 'ml-0'}`}>
           <header className="w-full flex items-center justify-between px-4 md:px-6 py-4 bg-white/90 dark:bg-[#23272F]/95 shadow-md fixed top-0 left-0 z-20 backdrop-blur-md transition-colors duration-300 border-b border-[#EDF2FB] dark:border-[#23272F]" role="banner" aria-label="Cabeçalho">
             <div className="flex items-center gap-3">
-              <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow hover:scale-105 transition-transform duration-200" />
+              <ProfileAvatar 
+                profileImage={profileImage}
+                name={userData?.nome || 'User'}
+                size="w-10 h-10"
+                className="border-2 border-[#ED4231] shadow hover:scale-105 transition-transform duration-200"
+              />
       
               <span className="font-bold text-indigo-900 dark:text-gray-100">{userData.nome} {userData.sobrenome}</span>
             </div>

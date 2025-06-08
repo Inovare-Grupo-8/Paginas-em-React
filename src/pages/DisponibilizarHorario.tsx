@@ -26,6 +26,7 @@ import { DisponibilizarHorarioSkeleton } from "../components/ui/custom-skeletons
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { useProfessional } from "@/hooks/useProfessional";
+import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 
 const DisponibilizarHorario = () => {
   const { t } = useTranslation();
@@ -254,7 +255,12 @@ const DisponibilizarHorario = () => {
             <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md">
               <Menu className="w-7 h-7" />
             </button>
-            <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow" />
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={`Dr. ${professionalData.nome} ${professionalData.sobrenome}`}
+              size="w-10 h-10"
+              className="border-2 border-[#ED4231] shadow"
+            />
             <span className="font-bold text-foreground">Dr. {professionalData.nome} {professionalData.sobrenome}</span>
           </div>
         )}
@@ -270,7 +276,12 @@ const DisponibilizarHorario = () => {
             </Button>
           </div>
           <div className="flex flex-col items-center gap-2 mb-8">
-            <img src={profileImage} alt="Foto de perfil" className="w-16 h-16 rounded-full border-4 border-[#EDF2FB] shadow" />
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={`Dr. ${professionalData.nome} ${professionalData.sobrenome}`}
+              size="w-16 h-16"
+              className="border-4 border-[#EDF2FB] shadow"
+            />
             <span className="font-extrabold text-xl text-indigo-900 dark:text-gray-100 tracking-wide">Dr. {professionalData.nome} {professionalData.sobrenome}</span>
             <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
               {professionalData.especialidade}
@@ -382,7 +393,12 @@ const DisponibilizarHorario = () => {
         <main id="main-content" role="main" aria-label="Conteúdo principal" className={`flex-1 w-full md:w-auto mt-20 md:mt-0 transition-all duration-500 ease-in-out px-2 md:px-0 ${sidebarOpen ? '' : 'ml-0'}`}>
           <header className="w-full flex items-center justify-between px-4 md:px-6 py-4 bg-white/90 dark:bg-gray-900/95 shadow-md fixed top-0 left-0 z-20 backdrop-blur-md">
             <div className="flex items-center gap-3">
-              <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-primary shadow hover:scale-105 transition-transform duration-200" />
+              <ProfileAvatar 
+                profileImage={profileImage}
+                name={`Dr. ${professionalData.nome} ${professionalData.sobrenome}`}
+                size="w-10 h-10"
+                className="border-2 border-primary shadow hover:scale-105 transition-transform duration-200"
+              />
               <span className="font-bold text-foreground">Dr. {professionalData.nome} {professionalData.sobrenome}</span>
             </div>
             <div className="flex items-center gap-3">              <button

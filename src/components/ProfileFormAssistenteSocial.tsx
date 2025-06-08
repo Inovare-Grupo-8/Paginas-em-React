@@ -1,8 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Calendar as CalendarIcon, User, Clock, Menu, History, ChevronRight, Users, UserCheck, Activity, Sun, Moon, Home as HomeIcon, Phone, Mail, MessageSquare, FileText, Check, X, Eye, ThumbsUp, ThumbsDown, AlertTriangle, UserPlus, ArrowLeft } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Calendar as CalendarIcon, User, Clock, Menu, History, ChevronRight, Users, UserCheck, Activity, Sun, Moon, Home as HomeIcon, Phone, Mail, MessageSquare, FileText, Check, X, Eye, ThumbsUp, ThumbsDown, AlertTriangle, UserPlus, ArrowLeft, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useProfileImage } from "@/components/useProfileImage";
 import { useThemeToggleWithNotification } from "@/hooks/useThemeToggleWithNotification";
@@ -10,28 +12,53 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCep } from "@/hooks/useCep";
-import { Badge } from "@/components/ui/badge";
-import { useAssistenteSocial, AssistenteSocialInput, AssistenteSocialOutput } from "@/hooks/useAssistenteSocial";
-import { UserNavigationItem } from "@/utils/userNavigation";
+import { useAssistenteSocial } from "@/hooks/useAssistenteSocial";
+import { LetterAvatar } from "@/components/ui/LetterAvatar";
+import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // Interface para dados do assistente social
-interface AssistenteSocialFormData extends AssistenteSocialOutput {
+interface AssistenteSocialFormData {
+  idUsuario: number;
+  nome: string;
+  sobrenome: string;
+  crp: string;
+  especialidade: string;
+  telefone: string;
+  email: string;
+  bio: string;
+  fotoUrl?: string;
+  endereco: {
+    rua: string;
+    numero: string;
+    complemento: string;
+    bairro: string;
+    cidade: string;
+    estado: string;
+    cep: string;
+  };
   proximaDisponibilidade: Date;
   atendimentosRealizados: number;
   avaliacaoMedia: number;
 }
 
-// Dados mockados do assistente social
+// Dados padrão do assistente social
 const assistenteSocialDataDefault: AssistenteSocialFormData = {
   idUsuario: 0,
   nome: "",
   sobrenome: "",
+  email: "",
   crp: "",
   especialidade: "",
   telefone: "",
-  email: "",
   bio: "",
   endereco: {
     rua: "",
@@ -59,14 +86,14 @@ export const assistenteSocialNavItems: Record<string, UserNavigationItem> = {
     label: 'Classificar Usuários',
     icon: <UserCheck className="w-6 h-6" color="#ED4231" />,
   },
-  cadastrarVoluntario: {
-    path: '/cadastro-voluntario',
-    label: 'Cadastrar Voluntário',
-    icon: <UserPlus className="w-6 h-6" color="#ED4231" />,
-  },
   cadastrarAssistente: {
     path: '/cadastro-assistente',
     label: 'Cadastrar Assistente', 
+    icon: <UserPlus className="w-6 h-6" color="#ED4231" />,
+  },
+  cadastrarVoluntario: {
+    path: '/cadastro-voluntario',
+    label: 'Cadastrar Voluntário',
     icon: <UserPlus className="w-6 h-6" color="#ED4231" />,
   },
   perfil: {
@@ -76,7 +103,7 @@ export const assistenteSocialNavItems: Record<string, UserNavigationItem> = {
   },
 };
 
-const ProfileFormAssistenteSocial = () => {
+export default function ProfileFormAssistenteSocial() {
   const location = useLocation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -89,20 +116,22 @@ const ProfileFormAssistenteSocial = () => {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [successMessage, setSuccessMessage] = useState("");
   const [formChanged, setFormChanged] = useState(false);
-
   // Estado para o formulário
   const [formData, setFormData] = useState<AssistenteSocialFormData>(assistenteSocialDataDefault);
-
   // Estado para a imagem selecionada
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-
+  const [imageError, setImageError] = useState(false);
+  const [avatarImageError, setAvatarImageError] = useState(false);
+  
+  // Estado para o modal de redirecionamento após alteração de email
+  const [showEmailChangeModal, setShowEmailChangeModal] = useState(false);
+  const [originalEmail, setOriginalEmail] = useState<string>("");
   // Função para lidar com a mudança nos campos
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormChanged(true);
     const { name, value } = e.target;
-    
-    // Formatação específica para o CEP
+      // Formatação específica para o CEP
     if (name === "endereco.cep") {
       const formattedCep = formatCep(value);
       setFormData({
@@ -114,7 +143,18 @@ const ProfileFormAssistenteSocial = () => {
       });
       return;
     }
-      if (name.includes('.')) {
+
+    // Formatação específica para telefone
+    if (name === "telefone") {
+      const formattedPhone = formatters.phone(value);
+      setFormData({
+        ...formData,
+        telefone: formattedPhone
+      });
+      return;
+    }
+    
+    if (name.includes('.')) {
       const [parent, child] = name.split('.');
       const parentValue = formData[parent as keyof AssistenteSocialFormData];
       setFormData({
@@ -145,37 +185,46 @@ const ProfileFormAssistenteSocial = () => {
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  // Função para validar o formulário antes de salvar
+  };  // Função para validar o formulário antes de salvar
   const validateForm = () => {
     const errors: Record<string, string> = {};
     
+    // Verificar se formData está definido e tem as propriedades básicas
+    if (!formData) {
+      errors.form = "Dados do formulário não carregados";
+      setValidationErrors(errors);
+      return false;
+    }
+    
     // Validação básica de campos obrigatórios
-    if (!formData.nome.trim()) errors.nome = "Nome é obrigatório";
-    if (!formData.sobrenome.trim()) errors.sobrenome = "Sobrenome é obrigatório";
+    if (!formData.nome || !formData.nome.trim()) {
+      errors.nome = "Nome é obrigatório";
+    }
+    if (!formData.sobrenome || !formData.sobrenome.trim()) {
+      errors.sobrenome = "Sobrenome é obrigatório";
+    }
     
     // Validação de email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!formData.email.trim()) {
+    if (!formData.email || !formData.email.trim()) {
       errors.email = "Email é obrigatório";
     } else if (!emailRegex.test(formData.email)) {
       errors.email = "Email inválido";
-    }
-    
-    // Validação de telefone (formato brasileiro)
-    const phoneRegex = /^\(\d{2}\)\s\d{4,5}-\d{4}$/;
-    if (formData.telefone && !phoneRegex.test(formData.telefone)) {
-      errors.telefone = "Formato de telefone inválido. Ex: (11) 98765-4321";
+    }      // Validação de telefone usando a função importada
+    if (formData.telefone && formData.telefone.trim()) {
+      const phoneError = !isPhone(formData.telefone);
+      if (phoneError) {
+        errors.telefone = "Telefone inválido - use o formato (XX) XXXXX-XXXX ou (XX) XXXX-XXXX";
+      }
     }
 
     // Validação do CRP
-    if (!formData.crp.trim()) {
+    if (!formData.crp || !formData.crp.trim()) {
       errors.crp = "CRP é obrigatório";
     }
 
     // Validação de especialidade
-    if (!formData.especialidade.trim()) {
+    if (!formData.especialidade || !formData.especialidade.trim()) {
       errors.especialidade = "Especialidade é obrigatória";
     }
     
@@ -188,33 +237,80 @@ const ProfileFormAssistenteSocial = () => {
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
-  const { fetchPerfil, atualizarPerfil } = useAssistenteSocial();
-
-  // Função para carregar dados do perfil
+  const { fetchPerfil, atualizarPerfil, atualizarDadosPessoais, atualizarDadosProfissionais, buscarEndereco, atualizarEndereco, uploadFoto } = useAssistenteSocial();  // Função para carregar dados do perfil
   useEffect(() => {
     const carregarPerfil = async () => {
       try {
+        // Carregar dados do perfil
         const dados = await fetchPerfil();
-        setFormData({
+        console.log('Dados recebidos do backend:', dados);
+        
+        // Carregar dados de endereço separadamente
+        let dadosEndereco = null;
+        try {
+          dadosEndereco = await buscarEndereco();
+          console.log('Dados de endereço recebidos:', dadosEndereco);
+        } catch (enderecoError) {
+          console.log('Erro ao carregar endereço (usando dados padrão):', enderecoError);
+        }
+        
+        // Se houver uma foto de perfil, atualizar o contexto
+        if (dados.fotoUrl) {
+          console.log('Atualizando foto do perfil:', dados.fotoUrl);
+          setProfileImage(dados.fotoUrl);
+        }        // Garantir que todos os campos obrigatórios existam, mas priorizar dados recebidos
+        const dadosCompletos = {
+          ...assistenteSocialDataDefault,
           ...dados,
+          nome: dados.nome || assistenteSocialDataDefault.nome,
+          sobrenome: dados.sobrenome || assistenteSocialDataDefault.sobrenome,
+          email: dados.email || assistenteSocialDataDefault.email,
+          telefone: dados.telefone || assistenteSocialDataDefault.telefone,
+          crp: dados.crp || assistenteSocialDataDefault.crp,
+          especialidade: dados.especialidade || assistenteSocialDataDefault.especialidade,
+          bio: dados.bio || assistenteSocialDataDefault.bio,
+          fotoUrl: dados.fotoUrl || assistenteSocialDataDefault.fotoUrl,
+          endereco: {
+            ...assistenteSocialDataDefault.endereco,
+            ...(dadosEndereco || {})
+          },
           proximaDisponibilidade: new Date(),
           atendimentosRealizados: 0,
           avaliacaoMedia: 0
-        });
+        };
+          console.log('Dados processados para o formulário:', dadosCompletos);
+        setFormData(dadosCompletos);
+        
+        // Armazenar o email original para detectar mudanças
+        setOriginalEmail(dados.email || "");
       } catch (error) {
+        console.error('Erro ao carregar perfil:', error);
+        setFormData(assistenteSocialDataDefault);
         toast({
           title: "Erro ao carregar perfil",
-          description: "Não foi possível carregar os dados do perfil.",
+          description: "Não foi possível carregar os dados do perfil. Usando dados padrão.",
           variant: "destructive"
         });
       }
     };
 
     carregarPerfil();
-  }, []);
+  }, []);  // Reset avatar error state when profile image changes
+  useEffect(() => {
+    if (profileImage && profileImage !== 'undefined' && profileImage !== '') {
+      setAvatarImageError(false);
+    }
+  }, [profileImage]);
 
-  // Função para salvar as alterações
-  const handleSave = async () => {
+  // Reset main image error state when profile image or preview changes
+  useEffect(() => {
+    if ((profileImage && profileImage !== 'undefined' && profileImage !== '') || imagePreview) {
+      setImageError(false);
+    }
+  }, [profileImage, imagePreview]);
+
+  // Função para salvar as alterações  // Função para salvar apenas dados pessoais básicos (nome e email)
+  const handleSavePersonalData = async () => {
     if (!formChanged && !selectedImage) {
       toast({
         title: "Nenhuma alteração detectada",
@@ -224,56 +320,305 @@ const ProfileFormAssistenteSocial = () => {
       return;
     }
     
-    if (!validateForm()) {
-      toast({
-        title: "Formulário com erros",
-        description: "Corrija os erros antes de salvar",
-        variant: "destructive"
-      });
-      return;
-    }
-    
     setLoading(true);
     
     try {
-      const dadosParaEnviar: AssistenteSocialInput = {
-        nome: formData.nome,
-        sobrenome: formData.sobrenome,
-        crp: formData.crp,
-        especialidade: formData.especialidade,
-        telefone: formData.telefone,
-        email: formData.email,
-        bio: formData.bio,
-        endereco: formData.endereco
-      };
+      // Validar campos pessoais obrigatórios
+      if (!formData.nome || !formData.nome.trim()) {
+        toast({
+          title: "Nome obrigatório",
+          description: "Por favor, preencha o nome",
+          variant: "destructive"
+        });
+        return;
+      }
 
-      const dadosAtualizados = await atualizarPerfil(dadosParaEnviar);
+      if (!formData.sobrenome || !formData.sobrenome.trim()) {
+        toast({
+          title: "Sobrenome obrigatório",
+          description: "Por favor, preencha o sobrenome",
+          variant: "destructive"
+        });
+        return;
+      }
       
-      setFormData({
-        ...dadosAtualizados,
-        proximaDisponibilidade: formData.proximaDisponibilidade,
-        atendimentosRealizados: formData.atendimentosRealizados,
-        avaliacaoMedia: formData.avaliacaoMedia
-      });
+      if (!formData.email || !formData.email.trim()) {
+        toast({
+          title: "Email obrigatório", 
+          description: "Por favor, preencha o email",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!formData.telefone || !formData.telefone.trim()) {
+        toast({
+          title: "Telefone obrigatório",
+          description: "Por favor, preencha o telefone",
+          variant: "destructive"
+        });
+        return;
+      }      // Validação de telefone
+      if (formData.telefone && formData.telefone.trim()) {
+        const phoneIsValid = isPhone(formData.telefone);
+        if (!phoneIsValid) {
+          toast({
+            title: "Telefone inválido",
+            description: "Por favor, use o formato (XX) XXXXX-XXXX ou (XX) XXXX-XXXX",
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+        // Preparar dados pessoais incluindo campos profissionais para assistente social
+      const dadosPessoais = {
+        nome: formData.nome,
+        email: formData.email,
+        sobrenome: formData.sobrenome,
+        telefone: formData.telefone,
+        crp: formData.crp,
+        bio: formData.bio,
+        especialidade: formData.especialidade
+      };      console.log('Dados pessoais e profissionais para enviar:', dadosPessoais);
+
+      // Verificar se o email foi alterado
+      const emailAlterado = formData.email !== originalEmail;
+
+      // Usar a nova função específica para dados pessoais
+      const dadosAtualizados = await atualizarDadosPessoais(dadosPessoais);
+      
+      // Atualizar o estado local mantendo os outros dados
+      setFormData(prevData => ({
+        ...prevData,
+        nome: dadosAtualizados.nome || prevData.nome,
+        email: dadosAtualizados.email || prevData.email,
+        sobrenome: dadosAtualizados.sobrenome || prevData.sobrenome,
+        telefone: dadosAtualizados.telefone || prevData.telefone,
+        crp: dadosAtualizados.crp || prevData.crp,
+        bio: dadosAtualizados.bio || prevData.bio,
+        especialidade: dadosAtualizados.especialidade || prevData.especialidade
+      }));
       
       if (selectedImage && imagePreview) {
         setProfileImage(imagePreview);
         // Aqui você pode implementar o upload da imagem se necessário
       }
       
-      setSuccessMessage("Perfil atualizado com sucesso!");
+      setSuccessMessage("Dados pessoais e profissionais atualizados com sucesso!");
+      setFormChanged(false);
+      
+      // Se o email foi alterado, mostrar modal de redirecionamento
+      if (emailAlterado) {
+        setShowEmailChangeModal(true);
+      } else {
+        toast({
+          title: "Dados atualizados",
+          description: "Todos os dados pessoais e profissionais foram atualizados com sucesso.",
+        });
+      }
+        
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      console.error('Erro ao salvar dados pessoais:', error);
+      toast({
+        title: "Erro ao salvar dados pessoais",
+        description: error instanceof Error ? error.message : "Ocorreu um erro ao salvar suas informações pessoais.",
+        variant: "destructive"
+      });    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Função para lidar com o redirecionamento após alteração de email
+  const handleEmailChangeRedirect = () => {
+    // Limpar dados do localStorage
+    localStorage.removeItem('userData');
+    localStorage.removeItem('authToken');
+    
+    // Redirecionar para o login
+    navigate('/login');
+  };
+
+  // Função para cancelar o redirecionamento (caso o usuário queira continuar)
+  const handleCancelRedirect = () => {
+    setShowEmailChangeModal(false);
+    
+    toast({
+      title: "Dados atualizados",
+      description: "Todos os dados pessoais e profissionais foram atualizados com sucesso.",
+    });
+  };
+
+  // Função para salvar a foto de perfil
+  const handleSave = async () => {
+    if (selectedImage && imagePreview) {
+      try {
+        setLoading(true);
+        
+        // Upload da foto e obter a URL
+        const url = await uploadFoto(selectedImage);
+        console.log('URL da foto recebida do servidor:', url);
+
+        // Atualizar o contexto com a nova URL da imagem do servidor
+        setProfileImage(url);
+
+        // Limpar estados locais
+        setSelectedImage(null);
+        setImagePreview(null);
+        setFormChanged(false);
+          toast({
+          title: "Foto atualizada",
+          description: "Sua foto de perfil foi atualizada com sucesso!",
+        });
+
+        // Recarregar a página após sucesso para atualizar todas as referências da imagem
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      } catch (error) {
+        console.error('Erro ao fazer upload da foto:', error);
+        toast({
+          title: "Erro ao atualizar foto",
+          description: error instanceof Error ? error.message : "Ocorreu um erro ao atualizar sua foto de perfil.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      toast({
+        title: "Nenhuma foto selecionada",
+        description: "Selecione uma foto para atualizar",
+        variant: "default"
+      });
+    }
+  };
+  
+  // Função específica para salvar dados profissionais
+  const handleSaveProfessionalData = async () => {
+    if (!formChanged) {
+        toast({
+            title: "Nenhuma alteração detectada",
+            description: "Altere algum campo para salvar",
+            variant: "default"
+        });
+        return;
+    }
+    
+    setLoading(true);
+    
+    try {
+        // Validar campos profissionais
+        if (!formData.crp || !formData.crp.trim()) {
+            toast({
+                title: "CRP obrigatório",
+                description: "Por favor, preencha o número do CRP",
+                variant: "destructive"
+            });
+            return;
+        }
+        
+        if (!formData.especialidade || !formData.especialidade.trim()) {
+            toast({
+                title: "Especialidade obrigatória",
+                description: "Por favor, preencha sua especialidade",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        console.log('Dados profissionais a serem enviados:', {
+            crp: formData.crp,
+            especialidade: formData.especialidade,
+            bio: formData.bio
+        });
+
+        // Preparar dados profissionais para envio
+        const dadosProfissionais = {
+            crp: formData.crp,
+            especialidade: formData.especialidade,
+            bio: formData.bio || ''
+        };
+
+        const resultado = await atualizarDadosProfissionais(dadosProfissionais);
+        console.log('Resposta da atualização:', resultado);
+
+        // Atualizar o estado do formulário com os dados retornados
+        setFormData(prevData => ({
+            ...prevData,
+            crp: resultado.crp,
+            especialidade: resultado.especialidade,
+            bio: resultado.bio
+        }));
+      
+        setSuccessMessage("Dados profissionais atualizados com sucesso!");
+        setFormChanged(false);
+      
+        toast({
+            title: "Dados profissionais atualizados",
+            description: "Suas informações profissionais foram atualizadas com sucesso!",
+        });
+          
+        setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+        console.error('Erro ao salvar dados profissionais:', error);
+        toast({
+            title: "Erro ao salvar dados profissionais",
+            description: error instanceof Error ? error.message : "Ocorreu um erro ao salvar seus dados profissionais.",
+            variant: "destructive"
+        });
+    } finally {
+        setLoading(false);
+    }
+  };
+  
+  // Função específica para salvar dados de endereço
+  const handleSaveAddressData = async () => {
+    setLoading(true);
+    
+    try {
+      // Validar campos de endereço
+      if (!formData.endereco?.cep || !formData.endereco.cep.trim()) {
+        toast({
+          title: "CEP obrigatório",
+          description: "Por favor, preencha o CEP",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      if (!formData.endereco?.numero || !formData.endereco.numero.trim()) {
+        toast({
+          title: "Número obrigatório",
+          description: "Por favor, preencha o número do endereço",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Preparar dados de endereço para envio
+      const dadosEndereco = {
+        cep: formData.endereco.cep,
+        numero: formData.endereco.numero,
+        complemento: formData.endereco.complemento || ''
+      };
+
+      await atualizarEndereco(dadosEndereco);
+      
+      setSuccessMessage("Endereço atualizado com sucesso!");
       setFormChanged(false);
       
       toast({
-        title: "Perfil atualizado",
-        description: "Suas informações foram atualizadas com sucesso!",
+        title: "Endereço atualizado",
+        description: "Seu endereço foi atualizado com sucesso!",
       });
-      
+        
       setTimeout(() => setSuccessMessage(""), 3000);
     } catch (error) {
+      console.error('Erro ao salvar endereço:', error);
       toast({
-        title: "Erro ao salvar",
-        description: "Ocorreu um erro ao salvar suas informações.",
+        title: "Erro ao salvar endereço",
+        description: error instanceof Error ? error.message : "Ocorreu um erro ao salvar seu endereço.",
         variant: "destructive"
       });
     } finally {
@@ -329,16 +674,19 @@ const ProfileFormAssistenteSocial = () => {
       description: "Suas alterações foram descartadas com sucesso.",
     });
   };
-
   return (
     <SidebarProvider>
       <div className="min-h-screen w-full flex flex-col md:flex-row bg-[#EDF2FB] dark:bg-gradient-to-br dark:from-[#181A20] dark:via-[#23272F] dark:to-[#181A20] transition-colors duration-300 font-sans text-base">
         {!sidebarOpen && (
-          <div className="w-full flex justify-start items-center gap-3 p-4 fixed top-0 left-0 z-30 bg-white/80 dark:bg-[#23272F]/90 shadow-md backdrop-blur-md">
-            <Button onClick={() => setSidebarOpen(true)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md" aria-label="Abrir menu lateral" tabIndex={0} title="Abrir menu lateral">
+          <div className="w-full flex justify-start items-center gap-3 p-4 fixed top-0 left-0 z-30 bg-white/80 dark:bg-[#23272F]/90 shadow-md backdrop-blur-md">            <Button onClick={() => setSidebarOpen(true)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md" aria-label="Abrir menu lateral" tabIndex={0} title="Abrir menu lateral">
               <Menu className="w-7 h-7" />
             </Button>
-            <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow" />
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={formData.nome || 'U'}
+              size="w-10 h-10"
+              className="border-2 border-[#ED4231]"
+            />
             <span className="font-bold text-indigo-900 dark:text-gray-100">{formData.nome} {formData.sobrenome}</span>
           </div>
         )}
@@ -352,9 +700,13 @@ const ProfileFormAssistenteSocial = () => {
             <Button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md">
               <Menu className="w-7 h-7" />
             </Button>
-          </div>
-          <div className="flex flex-col items-center gap-2 mb-8">
-            <img src={profileImage} alt="Foto de perfil" className="w-16 h-16 rounded-full border-4 border-[#EDF2FB] shadow" />
+          </div>          <div className="flex flex-col items-center gap-2 mb-8">
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={formData.nome || 'U'}
+              size="w-16 h-16"
+              className="border-4 border-[#EDF2FB]"
+            />
             <span className="font-extrabold text-xl text-indigo-900 dark:text-gray-100 tracking-wide">{formData.nome} {formData.sobrenome}</span>
             <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
               {formData.especialidade}
@@ -383,7 +735,20 @@ const ProfileFormAssistenteSocial = () => {
             <SidebarMenuItem>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <SidebarMenuButton className="rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 text-[#ED4231] flex items-center gap-3">
+                  <SidebarMenuButton 
+                    className="rounded-xl px-4 py-3 font-normal text-sm md:text-base transition-all duration-300 hover:bg-[#ED4231]/20 focus:bg-[#ED4231]/20 text-[#ED4231] flex items-center gap-3"
+                    onClick={() => {
+                      // Clear user session data
+                      localStorage.removeItem('userData');
+                      localStorage.removeItem('profileData');
+                      // Redirect to login page
+                      navigate('/');
+                      toast({
+                        title: "Sessão encerrada",
+                        description: "Você foi desconectado com sucesso.",
+                      });
+                    }}
+                  >
                     <span className="flex items-center gap-2">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#ED4231" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M18 15l3-3m0 0l-3-3m3 3H9" /></svg>
                       <span>Sair</span>
@@ -406,11 +771,15 @@ const ProfileFormAssistenteSocial = () => {
 
         <main id="main-content" role="main" aria-label="Conteúdo principal" className={`flex-1 w-full md:w-auto mt-20 md:mt-0 transition-all duration-500 ease-in-out px-2 md:px-0 ${sidebarOpen ? '' : 'ml-0'}`}>
           {/* Header */}
-          <header className="w-full flex items-center justify-between px-4 md:px-6 py-4 bg-white/90 dark:bg-[#23272F]/95 shadow-md fixed top-0 left-0 z-20 backdrop-blur-md transition-colors duration-300 border-b border-[#EDF2FB] dark:border-[#23272F]" role="banner" aria-label="Cabeçalho">
-            <div className="flex items-center gap-3">
-              <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow hover:scale-105 transition-transform duration-200" />
-              <span className="font-bold text-indigo-900 dark:text-gray-100">{formData.nome} {formData.sobrenome}</span>
-            </div>
+          <header className="w-full flex items-center justify-between px-4 md:px-6 py-4 bg-white/90 dark:bg-[#23272F]/95 shadow-md fixed top-0 left-0 z-20 backdrop-blur-md transition-colors duration-300 border-b border-[#EDF2FB] dark:border-[#23272F]" role="banner" aria-label="Cabeçalho">          <div className="flex items-center gap-3">
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={formData.nome || 'U'}
+              size="w-10 h-10"
+              className="border-2 border-[#ED4231]"
+            />
+            <span className="font-bold text-indigo-900 dark:text-gray-100">{formData.nome} {formData.sobrenome}</span>
+          </div>
             <div className="flex items-center gap-3">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -544,8 +913,8 @@ const ProfileFormAssistenteSocial = () => {
                           </TooltipTrigger>
                           <TooltipContent side="top">
                             <p>Insira seu e-mail principal para contato</p>
-                          </TooltipContent>
-                        </Tooltip>
+                          </TooltipContent>                        
+                          </Tooltip>
                       </div>
                       
                       <div className="space-y-2">
@@ -586,11 +955,10 @@ const ProfileFormAssistenteSocial = () => {
                         <TooltipContent side="top">
                           <p>Descartar alterações feitas no perfil</p>
                         </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
+                      </Tooltip>                      <Tooltip>
                         <TooltipTrigger asChild>
                           <Button 
-                            onClick={handleSave} 
+                            onClick={handleSavePersonalData} 
                             disabled={loading || (!formChanged && !selectedImage)} 
                             className="ml-auto bg-[#ED4231] hover:bg-[#d53a2a]"
                           >
@@ -602,11 +970,10 @@ const ProfileFormAssistenteSocial = () => {
                                 </svg>
                                 Salvando...
                               </div>
-                            ) : "Salvar Alterações"}
+                            ) : "Salvar Dados Pessoais"}
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p>Salvar todas as alterações feitas no perfil</p>
+                        </TooltipTrigger>                        <TooltipContent side="top">
+                          <p>Salvar alterações no nome e email (dados básicos)</p>
                         </TooltipContent>
                       </Tooltip>
                     </CardFooter>
@@ -684,11 +1051,10 @@ const ProfileFormAssistenteSocial = () => {
                           className="w-full min-h-[150px] rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ED4231]"
                           placeholder="Descreva sua experiência profissional e áreas de atuação..."
                         />
-                      </div>
-                    </CardContent>
+                      </div>                    </CardContent>
                     <CardFooter>
-                      <Button onClick={handleSave} disabled={loading} className="ml-auto bg-[#ED4231] hover:bg-[#d53a2a]">
-                        {loading ? "Salvando..." : "Salvar Alterações"}
+                      <Button onClick={handleSaveProfessionalData} disabled={loading} className="ml-auto bg-[#ED4231] hover:bg-[#d53a2a]">
+                        {loading ? "Salvando..." : "Salvar Dados Profissionais"}
                       </Button>
                     </CardFooter>
                   </Card>
@@ -753,9 +1119,8 @@ const ProfileFormAssistenteSocial = () => {
                           className="bg-white dark:bg-gray-800"
                         />
                       </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="md:col-span-1 space-y-2">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
                           <Label htmlFor="cidade">Cidade</Label>
                           <Input 
                             id="cidade" 
@@ -804,12 +1169,11 @@ const ProfileFormAssistenteSocial = () => {
                           <p className="text-xs text-gray-500 dark:text-gray-400">Digite o CEP para preencher o endereço automaticamente</p>
                         </div>
                       </div>
-                    </CardContent>
-                    <CardFooter>
+                    </CardContent>                    <CardFooter>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button onClick={handleSave} disabled={loading} className="ml-auto bg-[#ED4231] hover:bg-[#d53a2a]">
-                            {loading ? "Salvando..." : "Salvar Alterações"}
+                          <Button onClick={handleSaveAddressData} disabled={loading} className="ml-auto bg-[#ED4231] hover:bg-[#d53a2a]">
+                            {loading ? "Salvando..." : "Salvar Endereço"}
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="top">
@@ -829,12 +1193,20 @@ const ProfileFormAssistenteSocial = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="flex flex-col items-center gap-6">
-                        <div className="relative w-40 h-40 rounded-full overflow-hidden border-4 border-[#EDF2FB] dark:border-[#23272F] shadow-lg">
-                          <img 
-                            src={imagePreview || profileImage} 
-                            alt="Foto de perfil" 
-                            className="w-full h-full object-cover"
-                          />
+                        <div className="relative w-40 h-40 rounded-full overflow-hidden border-4 border-[#EDF2FB] dark:border-[#23272F] shadow-lg">                          {(imagePreview || (profileImage && profileImage !== 'undefined' && profileImage !== '')) && !imageError
+                            ? (
+                              <img 
+                                src={imagePreview || profileImage} 
+                                alt="Foto de perfil" 
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  console.log('Erro ao carregar imagem de perfil:', e);
+                                  setImageError(true);
+                                }}
+                              />
+                            ) : (
+                              <LetterAvatar name={formData.nome || 'U'} size="w-40 h-40" />
+                            )}
                         </div>
                         
                         <div className="flex flex-col items-center gap-4">
@@ -849,8 +1221,7 @@ const ProfileFormAssistenteSocial = () => {
                             </TooltipTrigger>
                             <TooltipContent side="top">
                               <p>Clique para selecionar uma nova foto de perfil</p>
-                            </TooltipContent>
-                          </Tooltip>
+                            </TooltipContent>                          </Tooltip>
                           <Input 
                             id="photo-upload" 
                             type="file" 
@@ -859,8 +1230,8 @@ const ProfileFormAssistenteSocial = () => {
                             className="hidden"
                           />
                           <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
-                            Formatos suportados: JPG, PNG, GIF<br/>
-                            Tamanho máximo: 5MB
+                            Formatos suportados: JPG, PNG<br/>
+                            Tamanho máximo: 1MB (imagens maiores serão comprimidas automaticamente)
                           </p>
                         </div>
                       </div>
@@ -881,11 +1252,78 @@ const ProfileFormAssistenteSocial = () => {
                 </TabsContent>
               </Tabs>
             </div>
-          </div>
-        </main>
+          </div>        </main>
       </div>
+
+      {/* Modal de Alteração de Email */}
+      <Dialog open={showEmailChangeModal} onOpenChange={setShowEmailChangeModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Email Alterado
+            </DialogTitle>
+            <DialogDescription>
+              Seu email foi alterado com sucesso. Por motivos de segurança, você será redirecionado para a página de login para reautenticar com o novo email.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowEmailChangeModal(false)}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleEmailChangeRedirect}
+              className="bg-[#ED4231] hover:bg-[#d53a2a]"
+            >
+              Ir para Login
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   );
 };
 
-export default ProfileFormAssistenteSocial;
+// Adicionando interfaces e utilitários
+interface UserNavigationItem {
+  path: string;
+  label: string;
+  icon: JSX.Element;
+}
+
+const formatters = {
+  phone: (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    
+    // Se tem mais de 11 dígitos, trunca
+    if (numbers.length > 11) {
+      return formatters.phone(numbers.slice(0, 11));
+    }
+    
+    // Formatação progressiva conforme o usuário digita
+    if (numbers.length >= 10) {
+      if (numbers.length === 11) {
+        return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
+      } else {
+        return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
+      }
+    } else if (numbers.length >= 6) {
+      return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
+    } else if (numbers.length >= 2) {
+      return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    } else if (numbers.length > 0) {
+      return `(${numbers}`;
+    }
+    
+    return value;
+  }
+};
+
+const isPhone = (value: string) => {
+  // Regex para telefone brasileiro no formato (XX) XXXXX-XXXX ou (XX) XXXX-XXXX
+  const regex = /^\(\d{2}\) \d{4,5}-\d{4}$/;
+  return regex.test(value);
+};

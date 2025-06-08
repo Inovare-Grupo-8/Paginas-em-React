@@ -18,6 +18,7 @@ import { motion } from "framer-motion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useUserData } from "@/hooks/useUserData";
+import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 
 interface PaymentData {
   paymentMethod: "cartao" | "pix" | "boleto" | "";
@@ -39,8 +40,8 @@ interface ServiceItem {
   category: string;
 }
 
-// Dados simulados dos serviços - movido para fora do componente para evitar re-criação
-const availableServices: ServiceItem[] = [
+// Dados simulados dos serviços - agora será carregado dinamicamente
+const DEFAULT_SERVICES: ServiceItem[] = [
   {
     id: "1",
     name: "Consulta Psicológica Individual",
@@ -89,48 +90,37 @@ const PagamentoUser = () => {
     pixKey: "",
     installments: "1"
   });
-
   // Estados da interface - com loading states mais específicos
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [selectedServices, setSelectedServices] = useState<ServiceItem[]>([]);
+  const [availableServices, setAvailableServices] = useState<ServiceItem[]>(DEFAULT_SERVICES);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loadingState, setLoadingState] = useState<{
     type: 'initial' | 'services' | 'payment' | 'validation' | '';
     message: string;
   }>({ type: 'initial', message: 'Carregando dados...' });
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    // Simular carregamento com estados mais específicos
+  const [isMobile, setIsMobile] = useState(false);  useEffect(() => {
+    // Load data without simulated delays
     const loadData = async () => {
       setLoading(true);
       
-      // Etapa 1: Carregando configurações
-      setLoadingState({ type: 'initial', message: 'Inicializando sistema de pagamento...' });
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // Etapa 2: Carregando serviços
-      setLoadingState({ type: 'services', message: 'Carregando seus serviços selecionados...' });
-      await new Promise(resolve => setTimeout(resolve, 600));
-      
-      // Carregar serviços selecionados da sessão/estado
-      const savedServices = localStorage.getItem('selectedServices');
-      if (savedServices) {
-        setSelectedServices(JSON.parse(savedServices));
-      } else {
-        // Serviços de exemplo se não houver seleção
-        setSelectedServices([availableServices[0]]);
+      try {
+        // Load selected services from session/state
+        const savedServices = localStorage.getItem('selectedServices');
+        if (savedServices) {
+          setSelectedServices(JSON.parse(savedServices));
+        }
+        
+      } catch (error) {
+        console.error('Error loading payment data:', error);
+      } finally {
+        setLoading(false);
+        setLoadingState({ type: '', message: '' });
       }
-      
-      // Etapa 3: Finalizando
-      setLoadingState({ type: 'validation', message: 'Validando informações...' });
-      await new Promise(resolve => setTimeout(resolve, 400));
-      
-      setLoading(false);
-      setLoadingState({ type: '', message: '' });
     };
     
-    // Detectar se é mobile
+    // Detect if mobile
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
@@ -141,7 +131,7 @@ const PagamentoUser = () => {
     loadData();
     
     return () => window.removeEventListener('resize', checkMobile);
-  }, []); // Removemos a dependência para evitar o loop
+  }, []);
 
   // Calcular total
   const calculateTotal = () => {
@@ -247,8 +237,7 @@ const PagamentoUser = () => {
     }
     
     return true;
-  };
-  // Processar pagamento
+  };  // Processar pagamento
   const handlePayment = async () => {
     if (!validateForm()) return;
     
@@ -257,7 +246,6 @@ const PagamentoUser = () => {
     try {
       // Etapa 1: Validando dados do pagamento
       setLoadingState({ type: 'validation', message: 'Validando dados do pagamento...' });
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Etapa 2: Processando pagamento específico por método
       let paymentMessage = '';
@@ -275,20 +263,44 @@ const PagamentoUser = () => {
           paymentMessage = 'Processando pagamento...';
       }
       setLoadingState({ type: 'payment', message: paymentMessage });
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Real API call to process payment
+      const paymentPayload = {
+        services: selectedServices,
+        total: finalTotal,
+        method: paymentData.paymentMethod,        cardData: paymentData.paymentMethod === 'cartao' ? {
+          number: paymentData.cardNumber,
+          holder: paymentData.cardName,
+          expiry: paymentData.cardExpiry,
+          cvv: paymentData.cardCVV
+        } : null
+      };
+
+      const response = await fetch('http://localhost:8080/pagamentos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(paymentPayload)
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao processar pagamento');
+      }
+
+      const result = await response.json();
       
       // Etapa 3: Finalizando transação
       setLoadingState({ type: 'validation', message: 'Finalizando transação...' });
-      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Salvar dados do pagamento
       const paymentRecord = {
-        id: `pay_${Date.now()}`,
+        id: result.id || `pay_${Date.now()}`,
         services: selectedServices,
         total: finalTotal,
         method: paymentData.paymentMethod,
         date: new Date(),
-        status: "aprovado"
+        status: result.status || "aprovado"
       };
       
       localStorage.setItem('lastPayment', JSON.stringify(paymentRecord));
@@ -395,7 +407,12 @@ const PagamentoUser = () => {
             <Button onClick={() => setSidebarOpen(true)} className="p-2 rounded-full bg-[#ED4231] text-white focus:outline-none shadow-md">
               <Menu className="w-7 h-7" />
             </Button>
-            <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow" />
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={userData?.nome || 'User'}
+              size="w-10 h-10"
+              className="border-2 border-[#ED4231] shadow"
+            />
             <span className="font-bold text-indigo-900 dark:text-gray-100">{userData?.nome} {userData?.sobrenome}</span>
           </div>
         )}
@@ -418,7 +435,12 @@ const PagamentoUser = () => {
           </div>
           
           <div className="flex flex-col items-center gap-2 mb-8">
-            <img src={profileImage} alt="Foto de perfil" className="w-16 h-16 rounded-full border-4 border-[#EDF2FB] shadow" />
+            <ProfileAvatar 
+              profileImage={profileImage}
+              name={userData?.nome || 'User'}
+              size="w-16 h-16"
+              className="border-4 border-[#EDF2FB] shadow"
+            />
             <span className="font-extrabold text-xl text-indigo-900 dark:text-gray-100 tracking-wide">
               {userData?.nome} {userData?.sobrenome}
             </span>
@@ -463,7 +485,12 @@ const PagamentoUser = () => {
                   <Menu className="w-5 h-5" />
                 </Button>
               )}
-              <img src={profileImage} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-[#ED4231] shadow hover:scale-105 transition-transform duration-200" />
+              <ProfileAvatar 
+                profileImage={profileImage}
+                name={userData?.nome || 'User'}
+                size="w-10 h-10"
+                className="border-2 border-[#ED4231] shadow hover:scale-105 transition-transform duration-200"
+              />
               <span className={`font-bold text-indigo-900 dark:text-gray-100 ${isMobile ? 'text-sm' : ''}`}>
                 {isMobile ? userData?.nome : `${userData?.nome} ${userData?.sobrenome}`}
               </span>
